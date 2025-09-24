@@ -1,0 +1,35 @@
+[toolchain]
+solana_version = "2.1.0"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+anon-vote = "ANVC5LJkZ1zD3KrRFUR77NkZCiDVqWjNViZsuhm3Ajkv"
+zk-relayer = "re1AjD8N1s4qZdKqJGNCjWRWcRS6jWoxVGw2ZXoMn7u"
+
+[programs.devnet]
+anon-vote = "ANVC5LJkZ1zD3KrRFUR77NkZCiDVqWjNViZsuhm3Ajkv"
+zk-relayer = "re1AjD8N1s4qZdKqJGNCjWRWcRS6jWoxVGw2ZXoMn7u"
+
+[test.validator]
+url = "https://api.devnet.solana.com"
+warp_slot = 32
+ticks_per_slot = 16
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = """
+cp target/idl/zk_relayer.json target/types/zk_relayer.ts ts-sdk-relayer/src/idl/ && \
+pnpm build:sdk-relayer && \
+cp target/idl/anon_vote.json target/types/anon_vote.ts ts-sdk/src/idl/ && \
+pnpm build:sdk && \
+pnpm ts-mocha -p ./tsconfig.json --no-timeouts --slow 0 --exit tests/*.test.ts
+"""

@@ -1,0 +1,46 @@
+{
+  "name": "@lincot/zk-relayer-sdk",
+  "version": "0.1.0",
+  "description": "ZK Relayer SDK",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "browser": "./dist/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "browser": "./dist/index.mjs",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.cjs"
+    }
+  },
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "bn.js": "^5.2.2"
+  },
+  "peerDependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/web3.js": "^1.69.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.2.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "license": "MIT",
+  "keywords": [
+    "solana",
+    "blockchain"
+  ]
+}

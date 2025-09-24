@@ -1,0 +1,26 @@
+[package]
+name = "zk-relayer"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "zk_relayer"
+
+[features]
+default = ["no-idl"]
+anchor-debug = ["anchor-lang/anchor-debug"]
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = "0.31.1"
+groth16-solana = "0.2"
+solana-bn254 = "2"
+solana-invoke = "0.4"
+solana-poseidon = "2.3"
+solana-system-interface = "1"
