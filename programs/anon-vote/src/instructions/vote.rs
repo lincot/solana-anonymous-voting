@@ -163,9 +163,11 @@ fn vote_common(
         poseidon(&[&poll.running_msg_hash, &msg_hash]).map_err(|_| AnonVoteError::Poseidon)?;
 
     emit!(VoteEvent {
+        poll_id: poll.id,
         eph_key,
         nonce,
-        ciphertext
+        ciphertext,
+        msg_hash,
     });
 
     Ok(())

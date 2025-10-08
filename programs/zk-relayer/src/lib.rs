@@ -1,4 +1,5 @@
 #![allow(unexpected_cfgs)]
+#![allow(clippy::too_many_arguments)]
 // fixes `#[program]` warning
 #![allow(deprecated)]
 
@@ -55,7 +56,6 @@ pub mod zk_relayer {
     }
 
     #[instruction(discriminator = 3u8)]
-    #[allow(clippy::too_many_arguments)]
     pub fn relay<'info>(
         ctx: Context<'_, '_, '_, 'info, Relay<'info>>,
         state_id: u64,

@@ -1,0 +1,12 @@
+solana:
+    read_rpcs:
+        -   url: http://127.0.0.1:8899
+            ratelimit: 4 # requests per second
+    write_rpcs:
+        -   url: http://127.0.0.1:8899
+            ratelimit: 4 # requests per second
+    reader_concurrency: 32
+
+ssl:
+    key: "key.pem"
+    cert: "cert.pem"

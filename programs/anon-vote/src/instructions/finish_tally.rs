@@ -1,10 +1,12 @@
+use anchor_lang::prelude::*;
+use core::iter::repeat;
+
 use crate::{
     error::*,
+    events::*,
     state::*,
     utils::{poseidon, u64_to_u128_be},
 };
-use anchor_lang::prelude::*;
-use core::iter::repeat;
 
 const MAX_CHOICES: usize = 8;
 
@@ -48,6 +50,8 @@ pub fn finish_tally(ctx: Context<FinishTally>, tally: Vec<u64>, tally_salt: u64)
     );
 
     poll.tally = tally;
+
+    emit!(FinishTallyEvent { poll_id: poll.id });
 
     Ok(())
 }

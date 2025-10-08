@@ -68,7 +68,7 @@ impl CompressedProof {
     }
 }
 
-#[derive(Clone, Debug, Default, AnchorSerialize, AnchorDeserialize, InitSpace)]
+#[derive(Clone, Copy, Debug, Default, AnchorSerialize, AnchorDeserialize, InitSpace)]
 pub struct Point {
     pub x: [u8; 32],
     pub y: [u8; 32],

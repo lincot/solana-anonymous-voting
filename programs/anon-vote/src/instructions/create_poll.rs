@@ -5,7 +5,7 @@ use zk_relayer::{
     state::ZkRelayerConfig,
 };
 
-use crate::{error::AnonVoteError, state::*, utils::system_transfer};
+use crate::{error::AnonVoteError, events::*, state::*, utils::system_transfer};
 
 /// Maximum number of messages per voter per relayer.
 const MSG_LIMIT: u64 = 3;
@@ -81,8 +81,8 @@ pub fn create_poll(
     poll.platform_fee = platform_config.fee;
     poll.fee = fee;
     poll.fee_destination = fee_destination;
-    poll.description_url = description_url;
-    poll.census_url = census_url;
+    poll.description_url = description_url.clone();
+    poll.census_url = census_url.clone();
 
     system_transfer(
         payer.to_account_info(),
@@ -107,6 +107,20 @@ pub fn create_poll(
         MSG_LIMIT,
         voting_end_time,
     )?;
+
+    emit!(CreatePollEvent {
+        poll_id: poll.id,
+        n_choices,
+        coordinator_key,
+        census_root,
+        voting_start_time,
+        voting_end_time,
+        platform_fee: platform_config.fee,
+        fee,
+        fee_destination,
+        description_url,
+        census_url,
+    });
 
     Ok(())
 }

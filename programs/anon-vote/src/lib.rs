@@ -1,4 +1,5 @@
 #![allow(unexpected_cfgs)]
+#![allow(clippy::manual_repeat_n)]
 // fixes `#[program]` warning
 #![allow(deprecated)]
 
@@ -7,7 +8,7 @@ use anchor_lang::prelude::*;
 use crate::{instructions::*, state::*};
 
 pub mod error;
-mod events;
+pub mod events;
 mod instructions;
 pub mod state;
 mod utils;

@@ -24,7 +24,6 @@ pub struct Relay<'info> {
     system_program: Program<'info, System>,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn relay<'info>(
     ctx: Context<'_, '_, '_, 'info, Relay<'info>>,
     state_id: u64,

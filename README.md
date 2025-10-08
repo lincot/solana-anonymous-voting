@@ -30,3 +30,23 @@ pnpm exportVk
 ```sh
 anchor test
 ```
+
+or with the indexer:
+
+```sh
+openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 365 -subj '/CN=localhost'
+```
+
+```sh
+anchor build
+solana-test-validator \
+  --reset \
+  --warp-slot 32 \
+  --deactivate-feature 9LZdXeKGeBV6hRLdxS1rHbHoEUsKqesCC2ZAPTPKJAbK \
+  --bpf-program target/deploy/anon_vote-keypair.json target/deploy/anon_vote.so \
+  --bpf-program target/deploy/zk_relayer-keypair.json target/deploy/zk_relayer.so
+
+cargo run --package anon-vote-indexer -- --config indexer/config.yml
+
+anchor test --skip-local-validator --skip-deploy
+```

@@ -1,3 +1,5 @@
+test-ledger
+*.pem
 ptau
 target
 .anchor
