@@ -1,9 +1,9 @@
 solana:
     read_rpcs:
-        -   url: http://127.0.0.1:8899
+        -   url: https://api.devnet.solana.com
             ratelimit: 4 # requests per second
     write_rpcs:
-        -   url: http://127.0.0.1:8899
+        -   url: https://api.devnet.solana.com
             ratelimit: 4 # requests per second
     reader_concurrency: 32
 

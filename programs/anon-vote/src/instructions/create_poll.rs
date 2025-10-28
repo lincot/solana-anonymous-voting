@@ -118,6 +118,7 @@ pub fn create_poll(
         platform_fee: platform_config.fee,
         fee,
         fee_destination,
+        n_voters,
         description_url,
         census_url,
     });

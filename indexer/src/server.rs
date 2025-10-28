@@ -35,6 +35,8 @@ impl Server {
                 .wrap(actix_web::middleware::Compress::default())
                 .service(get_poll)
                 .service(list_votes)
+                .service(polls_by_voter)
+                .service(polls_by_coordinator)
         })
         .bind_openssl(ip, ssl_builder)?
         .workers(workers)
@@ -46,7 +48,8 @@ impl Server {
 #[derive(Serialize)]
 struct PollOut {
     poll_id: i64,
-    n_choices: i16,
+    title: String,
+    choices: Vec<String>,
     census_root: String,
     coordinator_key: (String, String),
     voting_start_time: i64,
@@ -67,10 +70,10 @@ async fn get_poll(
     let poll_id = path.into_inner();
     let rec = sqlx::query!(
         r#"
-        SELECT poll_id, n_choices, census_root, coord_x, coord_y,
+        SELECT poll_id, title, choices, census_root, coord_x, coord_y,
                voting_start_time, voting_end_time, fee, platform_fee,
                fee_destination, description_url, census_url, tally_finished
-        FROM polls WHERE poll_id = $1
+        FROM polls WHERE poll_id = $1 AND title IS NOT NULL AND census_valid IS TRUE
         "#,
         poll_id
     )
@@ -81,7 +84,12 @@ async fn get_poll(
     if let Some(p) = rec {
         let out = PollOut {
             poll_id: p.poll_id,
-            n_choices: p.n_choices,
+            title: p
+                .title
+                .expect("title expected to be not null as per query constraint"),
+            choices: p
+                .choices
+                .expect("choices are expected to be set atomically with title"),
             census_root: hex::encode(&p.census_root),
             coordinator_key: (hex::encode(&p.coord_x), hex::encode(&p.coord_y)),
             voting_start_time: p.voting_start_time,
@@ -111,7 +119,7 @@ struct VoteOut {
 #[derive(Deserialize)]
 struct VotesQuery {
     limit: Option<i64>,
-    after_id: Option<i64>,
+    after: Option<i64>,
 }
 
 #[get("/polls/{poll_id}/votes")]
@@ -122,7 +130,7 @@ async fn list_votes(
 ) -> actix_web::Result<impl Responder> {
     let poll_id = path.into_inner();
     let limit = query.limit.unwrap_or(100).clamp(1, 1000);
-    let after_id = query.after_id.unwrap_or(0);
+    let after_id = query.after.unwrap_or(0);
 
     let rows = sqlx::query!(
         r#"
@@ -134,35 +142,168 @@ async fn list_votes(
         "#,
         poll_id,
         after_id,
-        limit
+        limit + 1
     )
     .fetch_all(&state.pool)
     .await
     .map_err(|_| actix_web::error::ErrorInternalServerError("db"))?;
 
-    let mut next_after_id = None;
+    let next_after = if rows.len() > limit as usize {
+        Some(rows[limit as usize - 1].id)
+    } else {
+        None
+    };
+
     let items: Vec<_> = rows
         .into_iter()
-        .map(|r| {
-            next_after_id = Some(r.id);
-            VoteOut {
-                id: r.id,
-                eph_x: hex::encode(&r.eph_x),
-                eph_y: hex::encode(&r.eph_y),
-                nonce: r.nonce,
-                ciphertext: hex::encode(&r.ciphertext),
-            }
+        .take(limit as usize)
+        .map(|r| VoteOut {
+            id: r.id,
+            eph_x: hex::encode(&r.eph_x),
+            eph_y: hex::encode(&r.eph_y),
+            nonce: r.nonce,
+            ciphertext: hex::encode(&r.ciphertext),
         })
         .collect();
 
     #[derive(Serialize)]
     struct Page {
         items: Vec<VoteOut>,
-        next_after_id: Option<i64>,
+        next_after: Option<i64>,
     }
 
-    Ok(web::Json(Page {
-        items,
-        next_after_id,
-    }))
+    Ok(web::Json(Page { items, next_after }))
+}
+
+#[derive(Serialize)]
+struct PollItem {
+    poll_id: i64,
+    voting_start_time: i64,
+    voting_end_time: i64,
+    title: String,
+    choices: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct PollPage {
+    items: Vec<PollItem>,
+    next_after: Option<i64>,
+}
+
+#[derive(Deserialize)]
+struct UserPollsQuery {
+    limit: Option<i64>,
+    after: Option<i64>,
+}
+
+#[actix_web::get("/voters/{leaf}/polls")]
+async fn polls_by_voter(
+    state: web::Data<AppState>,
+    leaf: web::Path<String>,
+    q: web::Query<UserPollsQuery>,
+) -> actix_web::Result<impl Responder> {
+    let mut leaf_arr = [0u8; 32];
+    hex::decode_to_slice(&*leaf, &mut leaf_arr)
+        .map_err(|_| actix_web::error::ErrorBadRequest("bad hex"))?;
+    let limit = q.limit.unwrap_or(50).clamp(1, 500);
+    let after = q.after.unwrap_or(0);
+
+    let rows = sqlx::query!(
+        r#"
+        SELECT p.poll_id, p.title, p.choices, p.voting_start_time,
+               p.voting_end_time, p.description_url, p.census_url
+        FROM voter_polls vp
+        JOIN polls p ON p.poll_id = vp.poll_id
+            AND census_valid = TRUE AND title IS NOT NULL
+        WHERE vp.key_hash = $1 AND p.poll_id > $2
+        ORDER BY p.poll_id ASC
+        LIMIT $3
+        "#,
+        &leaf_arr,
+        after,
+        limit + 1
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|_| actix_web::error::ErrorInternalServerError("db"))?;
+
+    let next_after = if rows.len() > limit as usize {
+        Some(rows[limit as usize - 1].poll_id)
+    } else {
+        None
+    };
+
+    let items = rows
+        .into_iter()
+        .take(limit as usize)
+        .map(|r| PollItem {
+            poll_id: r.poll_id,
+            voting_start_time: r.voting_start_time,
+            voting_end_time: r.voting_end_time,
+            title: r
+                .title
+                .expect("title expected to be not null as per query constraint"),
+            choices: r
+                .choices
+                .expect("choices are expected to be set atomically with title"),
+        })
+        .collect();
+
+    Ok(web::Json(PollPage { items, next_after }))
+}
+
+#[actix_web::get("/coordinators/{xy}/polls")]
+async fn polls_by_coordinator(
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+    q: web::Query<UserPollsQuery>,
+) -> actix_web::Result<impl Responder> {
+    let mut xy_arr = [0u8; 64];
+    hex::decode_to_slice(&*path, &mut xy_arr)
+        .map_err(|_| actix_web::error::ErrorBadRequest("bad hex"))?;
+    let limit = q.limit.unwrap_or(50).clamp(1, 500);
+    let after = q.after.unwrap_or(0);
+
+    let rows = sqlx::query!(
+        r#"
+        SELECT poll_id, title, choices, voting_start_time, voting_end_time,
+               description_url, census_url
+        FROM polls
+        WHERE coord_x=$1 AND coord_y=$2 AND poll_id > $3 AND census_valid = TRUE
+            AND title IS NOT NULL
+        ORDER BY poll_id ASC
+        LIMIT $4
+        "#,
+        &xy_arr[..32],
+        &xy_arr[32..],
+        after,
+        limit + 1
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|_| actix_web::error::ErrorInternalServerError("db"))?;
+
+    let next_after = if rows.len() > limit as usize {
+        Some(rows[limit as usize - 1].poll_id)
+    } else {
+        None
+    };
+
+    let items = rows
+        .into_iter()
+        .take(limit as usize)
+        .map(|r| PollItem {
+            poll_id: r.poll_id,
+            voting_start_time: r.voting_start_time,
+            voting_end_time: r.voting_end_time,
+            title: r
+                .title
+                .expect("title expected to be not null as per query constraint"),
+            choices: r
+                .choices
+                .expect("choices are expected to be set atomically with title"),
+        })
+        .collect();
+
+    Ok(web::Json(PollPage { items, next_after }))
 }

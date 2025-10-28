@@ -117,12 +117,17 @@ export const toBigint = (value: BN | bigint): bigint =>
 const FP =
   21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 
-export function toBytesBE(n0: bigint) {
+
+export function toBytesBE32Buf(n0: bigint): Buffer {
   let n = ((n0 % FP) + FP) % FP;
   const out = Buffer.alloc(32);
   for (let i = 31; i >= 0; i--) {
     out[i] = Number(n & 0xffn);
     n >>= 8n;
   }
-  return Array.from(out);
+  return out;
+}  
+
+export function toBytesBE32(n0: bigint): Array<number> {
+  return Array.from(toBytesBE32Buf(n0));
 }

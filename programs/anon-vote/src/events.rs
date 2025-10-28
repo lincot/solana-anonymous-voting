@@ -24,6 +24,7 @@ pub struct CreatePollEvent {
     pub platform_fee: u64,
     pub fee: u64,
     pub fee_destination: Pubkey,
+    pub n_voters: u64,
     pub description_url: String,
     pub census_url: String,
 }

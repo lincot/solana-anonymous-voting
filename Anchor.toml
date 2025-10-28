@@ -33,3 +33,6 @@ cp target/idl/anon_vote.json target/types/anon_vote.ts ts-sdk/src/idl/ && \
 pnpm build:sdk && \
 pnpm ts-mocha -p ./tsconfig.json --no-timeouts --slow 0 --exit tests/*.test.ts
 """
+
+initialize-anon-vote = "pnpm ts-node scripts/anon-vote/initialize.ts"
+initialize-zk-relayer = "pnpm ts-node scripts/zk-relayer/initialize.ts"

@@ -1,6 +1,7 @@
 use clap::Parser;
 use core::time::Duration;
 use db::DbManager;
+use description_manager::DescriptionManager;
 use indexer_event_processor::IndexerEvent;
 use solana_tools::solana_transactor::RpcPool;
 use sqlx::postgres::PgPoolOptions;
@@ -9,12 +10,14 @@ use tokio::sync::mpsc::unbounded_channel;
 use tracing::error;
 
 use crate::{
-    config::IndexerConfig, indexer_event_processor::EventProcessor, server::Server,
-    solana_reader::SolanaReader, utils::Broadcaster,
+    census_manager::CensusManager, config::IndexerConfig, indexer_event_processor::EventProcessor,
+    server::Server, solana_reader::SolanaReader, utils::Broadcaster,
 };
 
+mod census_manager;
 mod config;
 mod db;
+mod description_manager;
 mod event_processor;
 mod indexer_event_processor;
 mod parse_logs;
@@ -41,15 +44,29 @@ async fn main() {
         .expect("RPC pool failed to initialize");
 
     let (event_sender, event_receiver) = unbounded_channel();
+    let (census_sender, census_receiver) = unbounded_channel();
+    let (description_sender, description_receiver) = unbounded_channel();
 
     let url = std::env::var("DATABASE_URL").expect("expected DATABASE_URL to be set");
-    let pool = PgPoolOptions::new()
+    let pg_pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&url)
         .await
         .unwrap();
-    // sqlx::migrate!().run(&pool).await?;
-    let mut db_manager = DbManager::new(pool.clone(), event_receiver).await.unwrap();
+    CensusManager::enqueue_unfinished(&pg_pool, &census_sender)
+        .await
+        .unwrap();
+    DescriptionManager::enqueue_unfinished(&pg_pool, &description_sender)
+        .await
+        .unwrap();
+    let mut db_manager = DbManager::new(
+        pg_pool.clone(),
+        event_receiver,
+        census_sender,
+        description_sender,
+    )
+    .await
+    .unwrap();
 
     let tx_read_from = db_manager
         .get_cursor()
@@ -73,10 +90,14 @@ async fn main() {
     );
 
     let mut event_processor = EventProcessor::<IndexerEvent>::new(logs_receiver, event_sender);
+    let reqwest_client = reqwest::Client::new();
+    let census_manager =
+        CensusManager::new(pg_pool.clone(), reqwest_client.clone(), census_receiver, 3);
+    let description_manager =
+        DescriptionManager::new(pg_pool.clone(), reqwest_client, description_receiver, 3);
 
-    let server = Server::new(pool);
+    let server = Server::new(pg_pool);
 
-    // let mut tasks = JoinSet::new();
     tokio::spawn(async move {
         let res = solana_reader.listen_to_solana().await;
         error!("Solana reader finished with {res:?}");
@@ -89,18 +110,25 @@ async fn main() {
         event_processor.execute().await;
         error!("Event processor finished");
     });
-    // tokio::spawn(async move {
+    tokio::spawn(async move {
+        census_manager.execute().await;
+        error!("Census manager finished");
+    });
+    tokio::spawn(async move {
+        description_manager.execute().await;
+        error!("Description manager finished");
+    });
     let res = server
         .execute(
             config.ssl,
             std::thread::available_parallelism()
                 .unwrap()
                 .get()
-                .saturating_sub(4)
+                .saturating_sub(5)
                 .min(1),
         )
         .await;
-    error!("Server finished with {res:?}");
-    // });
-    // tasks.join_all().await;
+    if let Err(err) = res {
+        error!("Server finished with {err}");
+    }
 }

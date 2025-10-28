@@ -42,7 +42,7 @@ import {
   sendAndConfirmVersionedTx,
   setupTests,
   toBigint,
-  toBytesBE,
+  toBytesBE32,
 } from "../helpers/utils.ts";
 import {
   type BabyJub,
@@ -183,8 +183,8 @@ describe("ZK Relayer", () => {
     relayerPK = [F.toObject(R_PKx0), F.toObject(R_PKy0)];
 
     const relayerDecryptionKey = {
-      x: toBytesBE(relayerPK[0]),
-      y: toBytesBE(relayerPK[1]),
+      x: toBytesBE32(relayerPK[0]),
+      y: toBytesBE32(relayerPK[1]),
     };
     const relayerEndpoint = "https://test.test";
     const fee = 123123n;
@@ -211,8 +211,8 @@ describe("ZK Relayer", () => {
 
   test("updateRelayerConfig", async () => {
     const relayerDecryptionKey = {
-      x: toBytesBE(relayerPK[0]),
-      y: toBytesBE(relayerPK[1]),
+      x: toBytesBE32(relayerPK[0]),
+      y: toBytesBE32(relayerPK[1]),
     };
     const relayerEndpoint = "https://test2.test";
     await sendIx(
@@ -294,8 +294,8 @@ describe("Anon Vote", () => {
     C_PKx = C_PKx0;
     C_PKy = C_PKy0;
     const coordinatorKey = {
-      x: toBytesBE(F.toObject(C_PKx)),
-      y: toBytesBE(F.toObject(C_PKy)),
+      x: toBytesBE32(F.toObject(C_PKx)),
+      y: toBytesBE32(F.toObject(C_PKy)),
     };
 
     const descriptionUrl =
@@ -308,7 +308,7 @@ describe("Anon Vote", () => {
       await createPoll({
         payer: payer.publicKey,
         id: pollId,
-        censusRoot: toBytesBE(CensusRoot),
+        censusRoot: toBytesBE32(CensusRoot),
         coordinatorKey,
         nChoices,
         votingStartTime,
@@ -325,7 +325,7 @@ describe("Anon Vote", () => {
     expect(toBigint(poll?.id)).to.equal(pollId);
     expect(poll?.nChoices).to.equal(nChoices);
     expect(poll?.coordinatorKey).to.deep.equal(coordinatorKey);
-    expect(poll?.censusRoot).to.deep.equal(toBytesBE(CensusRoot));
+    expect(poll?.censusRoot).to.deep.equal(toBytesBE32(CensusRoot));
     expect(poll?.runningMsgHash).to.deep.equal(
       Array.from({ length: 32 }, () => 0),
     );
@@ -542,10 +542,10 @@ describe("Anon Vote", () => {
         onVote((event) => {
           try {
             expect(event.ciphertext).to.deep.equal(
-              C_CT.map((x) => toBytesBE(x)),
+              C_CT.map((x) => toBytesBE32(x)),
             );
-            expect(event.ephKey.x).to.deep.equal(toBytesBE(R[0]));
-            expect(event.ephKey.y).to.deep.equal(toBytesBE(R[1]));
+            expect(event.ephKey.x).to.deep.equal(toBytesBE32(R[0]));
+            expect(event.ephKey.y).to.deep.equal(toBytesBE32(R[1]));
             expect(toBigint(event.nonce)).to.equal(Nonce);
             resolve();
           } catch (error) {
@@ -649,9 +649,9 @@ describe("Anon Vote", () => {
           await voteWithRelayer({
             relayer: relayer.publicKey,
             pollId,
-            msgHash: toBytesBE(MsgHash_js),
-            ciphertext: C_CT.map((x) => toBytesBE(x)),
-            ephKey: { x: toBytesBE(R[0]), y: toBytesBE(R[1]) },
+            msgHash: toBytesBE32(MsgHash_js),
+            ciphertext: C_CT.map((x) => toBytesBE32(x)),
+            ephKey: { x: toBytesBE32(R[0]), y: toBytesBE32(R[1]) },
             nonce: Nonce,
             proof: {
               a: Array.from(serializedProof.a),
@@ -659,13 +659,13 @@ describe("Anon Vote", () => {
               c: Array.from(serializedProof.c),
             },
             platformFeeDestination: platformFeeDestination.publicKey,
-            relayerCiphertextHash: toBytesBE(R_CT_hash_js),
+            relayerCiphertextHash: toBytesBE32(R_CT_hash_js),
             relayerProof: {
               a: Array.from(serializedRelayerProof.a),
               b: Array.from(serializedRelayerProof.b),
               c: Array.from(serializedRelayerProof.c),
             },
-            rootAfter: toBytesBE(Root_after),
+            rootAfter: toBytesBE32(Root_after),
           }),
           [relayer],
         );
@@ -674,8 +674,8 @@ describe("Anon Vote", () => {
           await vote({
             payer: payer.publicKey,
             pollId,
-            ciphertext: C_CT.map((x) => toBytesBE(x)),
-            ephKey: { x: toBytesBE(R[0]), y: toBytesBE(R[1]) },
+            ciphertext: C_CT.map((x) => toBytesBE32(x)),
+            ephKey: { x: toBytesBE32(R[0]), y: toBytesBE32(R[1]) },
             nonce: Nonce,
             proof: {
               a: Array.from(serializedProof.a),
@@ -877,7 +877,7 @@ describe("Anon Vote", () => {
 
     await sendIx(
       await createTally({
-        initialTallyHash: toBytesBE(TallyHash_before),
+        initialTallyHash: toBytesBE32(TallyHash_before),
         payer: payer.publicKey,
         pollId,
       }),
@@ -887,7 +887,7 @@ describe("Anon Vote", () => {
       connection,
       findTally(pollId, payer.publicKey),
     );
-    expect(tallyAcc?.tallyHash).to.deep.equal(toBytesBE(TallyHash_before));
+    expect(tallyAcc?.tallyHash).to.deep.equal(toBytesBE32(TallyHash_before));
     expect(tallyAcc?.runningMsgHash).to.deep.equal(
       Array.from({ length: 32 }, () => 0),
     );
@@ -905,7 +905,7 @@ describe("Anon Vote", () => {
 
     await sendIx(
       await createTally({
-        initialTallyHash: toBytesBE(TallyHash_before),
+        initialTallyHash: toBytesBE32(TallyHash_before),
         payer: payer.publicKey,
         pollId,
       }),
@@ -930,9 +930,9 @@ describe("Anon Vote", () => {
           c: Array.from(serializedProof.c),
         },
         owner: payer.publicKey,
-        rootAfter: toBytesBE(Root_after),
-        runningMsgHashAfter: toBytesBE(H_after),
-        tallyHashAfter: toBytesBE(TallyHash_after),
+        rootAfter: toBytesBE32(Root_after),
+        runningMsgHashAfter: toBytesBE32(H_after),
+        tallyHashAfter: toBytesBE32(TallyHash_after),
       }),
     );
 

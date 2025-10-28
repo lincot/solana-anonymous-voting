@@ -1,24 +1,30 @@
 use anon_vote::events::{CreatePollEvent, FinishTallyEvent, VoteEvent};
 use core::mem::transmute;
 use sqlx::{postgres::PgQueryResult, PgPool, Postgres, Transaction};
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tracing::info;
 
-use crate::IndexerEvent;
+use crate::{census_manager::CensusCmd, description_manager::DescriptionCmd, IndexerEvent};
 
 pub struct DbManager {
     pool: PgPool,
     event_receiver: UnboundedReceiver<(String, Vec<IndexerEvent>)>,
+    census_sender: UnboundedSender<CensusCmd>,
+    description_sender: UnboundedSender<DescriptionCmd>,
 }
 
 impl DbManager {
     pub async fn new(
         pool: PgPool,
         event_receiver: UnboundedReceiver<(String, Vec<IndexerEvent>)>,
+        census_sender: UnboundedSender<CensusCmd>,
+        description_sender: UnboundedSender<DescriptionCmd>,
     ) -> sqlx::Result<Self> {
         Ok(Self {
             pool,
             event_receiver,
+            census_sender,
+            description_sender,
         })
     }
 
@@ -38,7 +44,7 @@ impl DbManager {
             let mut tx = self.pool.begin().await?;
 
             for event in events {
-                Self::on_event(&mut tx, event).await?;
+                self.on_event(&mut tx, event).await?;
             }
             Self::upsert_cursor(&mut tx, &signature).await?;
             tx.commit().await?;
@@ -67,28 +73,30 @@ impl DbManager {
     }
 
     async fn on_event(
+        &self,
         tx: &mut Transaction<'_, Postgres>,
         event: IndexerEvent,
     ) -> sqlx::Result<PgQueryResult> {
         match event {
-            IndexerEvent::CreatePoll(event) => Self::on_create_poll(tx, event).await,
+            IndexerEvent::CreatePoll(event) => self.on_create_poll(tx, event).await,
             IndexerEvent::Vote(event) => Self::on_vote(tx, event).await,
             IndexerEvent::FinishTally(event) => Self::on_finish_tally(tx, event).await,
         }
     }
 
     async fn on_create_poll(
+        &self,
         tx: &mut Transaction<'_, Postgres>,
         e: CreatePollEvent,
     ) -> sqlx::Result<PgQueryResult> {
-        sqlx::query!(
+        let res = sqlx::query!(
             r#"
         INSERT INTO polls (
           poll_id, n_choices, census_root, coord_x, coord_y,
-          voting_start_time, voting_end_time, fee, platform_fee, fee_destination,
-          description_url, census_url
+          voting_start_time, voting_end_time, fee, platform_fee, expected_voters,
+          fee_destination, description_url, census_url
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
         ON CONFLICT (poll_id) DO NOTHING
         "#,
             e.poll_id as i64,
@@ -100,12 +108,33 @@ impl DbManager {
             e.voting_end_time as i64,
             e.fee as i64,
             e.platform_fee as i64,
+            e.n_voters as i64,
             e.fee_destination.to_string(),
             e.description_url,
-            e.census_url
+            &e.census_url
         )
         .execute(&mut **tx)
-        .await
+        .await?;
+
+        let cmd = CensusCmd {
+            poll_id: e.poll_id as i64,
+            url: e.census_url,
+            expected_voters: e.n_voters,
+        };
+        if let Err(err) = self.census_sender.send(cmd) {
+            tracing::error!("Failed to send census command through the channel: {err}");
+        }
+
+        let cmd = DescriptionCmd {
+            poll_id: e.poll_id as i64,
+            url: e.description_url,
+            n_choices: e.n_choices,
+        };
+        if let Err(err) = self.description_sender.send(cmd) {
+            tracing::error!("Failed to send census command through the channel: {err}");
+        }
+
+        Ok(res)
     }
 
     async fn on_vote(

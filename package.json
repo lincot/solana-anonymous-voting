@@ -35,6 +35,8 @@
   },
   "scripts": {
     "exportVk": "ts-node scripts/exportVk.ts",
+    "genExample": "ts-node scripts/genExample.ts",
+    "genKey": "ts-node scripts/genKey.ts",
     "build:sdk": "pnpm --filter @lincot/anon-vote-sdk build",
     "build:sdk-relayer": "pnpm --filter @lincot/zk-relayer-sdk build"
   }
