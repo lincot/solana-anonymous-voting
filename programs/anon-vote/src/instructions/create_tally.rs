@@ -7,7 +7,7 @@ pub struct CreateTally<'info> {
     #[account(mut)]
     payer: Signer<'info>,
     #[account(
-        init,
+        init_if_needed,
         space = Tally::DISCRIMINATOR.len() + Tally::INIT_SPACE,
         payer = payer,
         seeds = [&b"TALLY"[..], &poll_id.to_le_bytes(), &payer.key.to_bytes()],
@@ -22,9 +22,11 @@ pub fn create_tally(
     _poll_id: u64,
     initial_tally_hash: [u8; 32],
 ) -> Result<()> {
-    let tally = &mut ctx.accounts.tally;
-
-    tally.tally_hash = initial_tally_hash;
+    ctx.accounts.tally.set_inner(Tally {
+        tally_hash: initial_tally_hash,
+        running_msg_hash: [0; 32],
+        root: [0; 32],
+    });
 
     Ok(())
 }

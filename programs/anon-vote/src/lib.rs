@@ -14,7 +14,7 @@ pub mod state;
 mod utils;
 mod vk;
 
-declare_id!("ANVC5LJkZ1zD3KrRFUR77NkZCiDVqWjNViZsuhm3Ajkv");
+declare_id!("MootG8ueTooVorJJq3kxdXLLg59ZW6phaHpoWeSySqB");
 
 #[program]
 pub mod anon_vote {
@@ -119,7 +119,7 @@ pub mod anon_vote {
     #[instruction(discriminator = 6u8)]
     pub fn tally_batch(
         ctx: Context<TallyBatch>,
-        proof: Proof,
+        proof: CompressedProof,
         root_after: [u8; 32],
         running_msg_hash_after: [u8; 32],
         tally_hash_after: [u8; 32],

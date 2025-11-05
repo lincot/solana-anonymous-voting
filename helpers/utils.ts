@@ -117,7 +117,6 @@ export const toBigint = (value: BN | bigint): bigint =>
 const FP =
   21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 
-
 export function toBytesBE32Buf(n0: bigint): Buffer {
   let n = ((n0 % FP) + FP) % FP;
   const out = Buffer.alloc(32);
@@ -126,8 +125,78 @@ export function toBytesBE32Buf(n0: bigint): Buffer {
     n >>= 8n;
   }
   return out;
-}  
+}
 
 export function toBytesBE32(n0: bigint): Array<number> {
   return Array.from(toBytesBE32Buf(n0));
+}
+
+export const hexToBytes32 = (hex: string): Uint8Array => {
+  let s = hex.replace(/^0x/i, "");
+  if (s.length > 64) {
+    throw new Error("Hex too long (max 64 nibbles = 32 bytes).");
+  }
+  if (!/^[0-9a-fA-F]*$/.test(s)) throw new Error("Invalid hex string.");
+  if (s.length % 2 === 1) s = "0" + s;
+  s = s.padStart(64, "0");
+  const out = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) {
+    out[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+};
+
+const TA_TAG = "__typedarray__";
+const BIGINT_TAG = "__bigint__";
+
+const u8ToB64 = (u8: Uint8Array) =>
+  typeof Buffer !== "undefined"
+    ? Buffer.from(u8).toString("base64")
+    : btoa(String.fromCharCode(...u8));
+
+const b64ToU8 = (b64: string) =>
+  typeof Buffer !== "undefined"
+    ? new Uint8Array(Buffer.from(b64, "base64"))
+    : new Uint8Array([...atob(b64)].map((c) => c.charCodeAt(0)));
+
+const constructors: Record<string, any> = {
+  Uint8Array,
+  Int8Array,
+  Uint16Array,
+  Int16Array,
+  Uint32Array,
+  Int32Array,
+  Float32Array,
+  Float64Array,
+  BigInt64Array,
+  BigUint64Array,
+};
+
+export function replacer(_k: string, v: any) {
+  if (typeof v === "bigint") return { [BIGINT_TAG]: v.toString() };
+
+  if (ArrayBuffer.isView(v) && !(v instanceof DataView)) {
+    const bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+    return { [TA_TAG]: v.constructor.name, data: u8ToB64(bytes) };
+  }
+  return v;
+}
+
+export function reviver(_k: string, v: any) {
+  if (v && typeof v === "object") {
+    if (BIGINT_TAG in v) return BigInt(v[BIGINT_TAG]);
+    if (TA_TAG in v && typeof v.data === "string") {
+      const ctor = constructors[v[TA_TAG]];
+      if (ctor) {
+        const bytes = b64ToU8(v.data);
+        // Recreate the view over the bytes.
+        return new ctor(
+          bytes.buffer,
+          bytes.byteOffset,
+          bytes.byteLength / ctor.BYTES_PER_ELEMENT,
+        );
+      }
+    }
+  }
+  return v;
 }

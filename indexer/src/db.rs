@@ -42,12 +42,30 @@ impl DbManager {
         while let Some((signature, events)) = self.event_receiver.recv().await {
             info!("Processed events {events:?}");
             let mut tx = self.pool.begin().await?;
-
+            let n_create_polls = events
+                .iter()
+                .filter(|e| matches!(e, IndexerEvent::CreatePoll { .. }))
+                .count();
+            let mut census_cmds = Vec::with_capacity(n_create_polls);
+            let mut description_cmds = Vec::with_capacity(n_create_polls);
             for event in events {
-                self.on_event(&mut tx, event).await?;
+                self.on_event(&mut tx, &mut census_cmds, &mut description_cmds, event)
+                    .await?;
             }
             Self::upsert_cursor(&mut tx, &signature).await?;
             tx.commit().await?;
+            for cmd in census_cmds {
+                if let Err(err) = self.census_sender.send(cmd) {
+                    tracing::error!("Failed to send census command through the channel: {err}");
+                }
+            }
+            for cmd in description_cmds {
+                if let Err(err) = self.description_sender.send(cmd) {
+                    tracing::error!(
+                        "Failed to send description command through the channel: {err}"
+                    );
+                }
+            }
         }
 
         Ok(())
@@ -75,10 +93,15 @@ impl DbManager {
     async fn on_event(
         &self,
         tx: &mut Transaction<'_, Postgres>,
+        census_cmds: &mut Vec<CensusCmd>,
+        description_cmds: &mut Vec<DescriptionCmd>,
         event: IndexerEvent,
     ) -> sqlx::Result<PgQueryResult> {
         match event {
-            IndexerEvent::CreatePoll(event) => self.on_create_poll(tx, event).await,
+            IndexerEvent::CreatePoll(event) => {
+                self.on_create_poll(tx, census_cmds, description_cmds, event)
+                    .await
+            }
             IndexerEvent::Vote(event) => Self::on_vote(tx, event).await,
             IndexerEvent::FinishTally(event) => Self::on_finish_tally(tx, event).await,
         }
@@ -87,6 +110,8 @@ impl DbManager {
     async fn on_create_poll(
         &self,
         tx: &mut Transaction<'_, Postgres>,
+        census_cmds: &mut Vec<CensusCmd>,
+        description_cmds: &mut Vec<DescriptionCmd>,
         e: CreatePollEvent,
     ) -> sqlx::Result<PgQueryResult> {
         let res = sqlx::query!(
@@ -101,9 +126,9 @@ impl DbManager {
         "#,
             e.poll_id as i64,
             e.n_choices as i16,
-            &e.census_root[..],
-            &e.coordinator_key.x[..],
-            &e.coordinator_key.y[..],
+            &e.census_root,
+            &e.coordinator_key.x,
+            &e.coordinator_key.y,
             e.voting_start_time as i64,
             e.voting_end_time as i64,
             e.fee as i64,
@@ -116,23 +141,17 @@ impl DbManager {
         .execute(&mut **tx)
         .await?;
 
-        let cmd = CensusCmd {
+        census_cmds.push(CensusCmd {
             poll_id: e.poll_id as i64,
             url: e.census_url,
             expected_voters: e.n_voters,
-        };
-        if let Err(err) = self.census_sender.send(cmd) {
-            tracing::error!("Failed to send census command through the channel: {err}");
-        }
+        });
 
-        let cmd = DescriptionCmd {
+        description_cmds.push(DescriptionCmd {
             poll_id: e.poll_id as i64,
             url: e.description_url,
             n_choices: e.n_choices,
-        };
-        if let Err(err) = self.description_sender.send(cmd) {
-            tracing::error!("Failed to send census command through the channel: {err}");
-        }
+        });
 
         Ok(res)
     }
@@ -149,8 +168,8 @@ impl DbManager {
         VALUES ($1,$2,$3,$4,$5)
         "#,
             e.poll_id as i64,
-            &e.eph_key.x[..],
-            &e.eph_key.y[..],
+            &e.eph_key.x,
+            &e.eph_key.y,
             e.nonce as i64,
             &unsafe { transmute::<[[u8; 32]; 7], [u8; 224]>(e.ciphertext) },
         )
@@ -165,10 +184,11 @@ impl DbManager {
         sqlx::query!(
             r#"
         UPDATE polls
-        SET tally_finished = TRUE
+        SET tally = $2
         WHERE poll_id = $1
         "#,
             e.poll_id as i64,
+            bytemuck::cast_slice(&e.tally),
         )
         .execute(&mut **tx)
         .await?;

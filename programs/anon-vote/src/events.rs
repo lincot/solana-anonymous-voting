@@ -33,4 +33,5 @@ pub struct CreatePollEvent {
 #[derive(Clone, Debug)]
 pub struct FinishTallyEvent {
     pub poll_id: u64,
+    pub tally: Vec<u64>,
 }

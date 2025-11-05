@@ -1,6 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet.js";
 import { initialize, toTransaction } from "@lincot/zk-relayer-sdk";
+import { hexToBytes32 } from "../../helpers/utils.ts";
 import { expect } from "chai";
 import { sendAndConfirmVersionedTx } from "../../helpers/utils.ts";
 
@@ -13,8 +14,8 @@ async function main(): Promise<void> {
   }
 
   const fee = BigInt(process.argv[2]);
-  const x = hexToBytes32(process.argv[3]);
-  const y = hexToBytes32(process.argv[4]);
+  const x = Array.from(hexToBytes32(process.argv[3]));
+  const y = Array.from(hexToBytes32(process.argv[4]));
   const relayerEndpoint = process.argv[5];
 
   const provider = anchor.AnchorProvider.env();
@@ -46,13 +47,5 @@ async function main(): Promise<void> {
     expect(e.toString()).to.include("already in use");
   }
 }
-
-const hexToBytes32 = (hex: string): number[] => {
-  const s = hex.replace(/^0x/, "");
-  if (s.length !== 64) throw new Error("Expected 32-byte hex");
-  const out = Array(32);
-  for (let i = 0; i < 32; i++) out[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
-  return out;
-};
 
 main();

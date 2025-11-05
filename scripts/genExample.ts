@@ -1,20 +1,15 @@
-import { buildEddsa, buildPoseidon } from "circomlibjs";
+import { buildBabyjub, buildEddsa, buildPoseidon } from "circomlibjs";
 import { mkdirSync, writeFileSync } from "fs";
-import { randomBytes } from "crypto";
 import { toBytesBE32Buf } from "../helpers/utils.ts";
 import { getMerkleRoot } from "../helpers/merkletree.ts";
+import { genBabyJubKeypair } from "../helpers/key.ts";
+import { bytesToHex } from "@noble/hashes/utils";
 
 const CENSUS_DEPTH = 40;
 const N_VOTERS = 3;
 
-const genKey = (eddsa: any, F: any) => {
-  const prvHex = "0x" + randomBytes(250).toString("hex");
-  const prv = BigInt(prvHex);
-  const pub = eddsa.prv2pub(F.e(prv));
-  return { pub, prvHex };
-};
-
 async function main(): Promise<void> {
+  const babyjub = await buildBabyjub();
   const poseidon = await buildPoseidon();
   const eddsa = await buildEddsa();
   const F = poseidon.F;
@@ -24,7 +19,8 @@ async function main(): Promise<void> {
   mkdirSync("example", { recursive: true });
 
   for (let i = 0; i < N_VOTERS; i++) {
-    const { pub, prvHex } = genKey(eddsa, F);
+    const { prv, pub } = genBabyJubKeypair(babyjub, eddsa);
+    const prvHex = "0x" + bytesToHex(prv);
     writeFileSync(`example/voter${i + 1}_prv.txt`, prvHex);
     census.push(
       F.toObject(
@@ -33,7 +29,10 @@ async function main(): Promise<void> {
     );
   }
 
-  writeFileSync(`example/coordinator_prv.txt`, genKey(eddsa, F).prvHex);
+  writeFileSync(
+    `example/coordinator_prv.txt`,
+    "0x" + bytesToHex(genBabyJubKeypair(babyjub, eddsa).prv),
+  );
 
   writeFileSync(
     "example/census.bin",

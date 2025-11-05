@@ -10,7 +10,7 @@ include "bitify.circom";
 include "comparators.circom";
 
 template Vote(DEPTH) {
-    var C_LIMBS = 6; // nullifier, choice, SecondaryKeyOld[2], SecondaryKeyNew[2]
+    var C_LIMBS = 6; // nullifier, choice, RevotingKeyOld[2], RevotingKeyNew[2]
     var C_PAD = (C_LIMBS % 3 == 0) ? C_LIMBS : C_LIMBS + (3 - (C_LIMBS % 3));
     var C_CT_LEN = C_PAD + 1;
 
@@ -28,17 +28,17 @@ template Vote(DEPTH) {
     signal output R_CT_hash;
 
     // ---- Private ----
-    signal input PrimaryKey[2];
+    signal input Key[2];
     signal input Path[DEPTH];
     signal input PathPos[DEPTH];
     signal input Choice;
-    signal input SecondaryKeyNew[2];
-    signal input SecondaryKeyOld[2];
-    signal input SecondarySignaturePoint[2];
-    signal input SecondarySignatureScalar;
+    signal input RevotingKeyNew[2];
+    signal input RevotingKeyOld[2];
+    signal input RevotingSignaturePoint[2];
+    signal input RevotingSignatureScalar;
 
-    signal input PrimarySignaturePoint[2];
-    signal input PrimarySignatureScalar;
+    signal input SignaturePoint[2];
+    signal input SignatureScalar;
 
     signal input ephR;
     signal input Nonce;
@@ -46,7 +46,7 @@ template Vote(DEPTH) {
     signal input R_CT[R_CT_LEN];
 
     signal root <== MerkleTreeInclusionProof(DEPTH)(
-        leaf <== PoseidonHasher(2)(PrimaryKey),
+        leaf <== PoseidonHasher(2)(Key),
         path_indices <== PathPos,
         path_elements <== Path
     );
@@ -55,48 +55,48 @@ template Vote(DEPTH) {
     // name = "AnonVote"; sum([ord(ch) << (8 * (len(name) - 1 - i)) for i, ch in enumerate(name)])
     var PLATFORM_NAME = 4714828379590718565;
     signal sigValid <== EdDSAPoseidonVerifier()(
-        publicKeyX  <== PrimaryKey[0],
-        publicKeyY  <== PrimaryKey[1],
-        signatureScalar   <== PrimarySignatureScalar,
-        signaturePointX <== PrimarySignaturePoint[0],
-        signaturePointY <== PrimarySignaturePoint[1],
+        publicKeyX  <== Key[0],
+        publicKeyY  <== Key[1],
+        signatureScalar   <== SignatureScalar,
+        signaturePointX <== SignaturePoint[0],
+        signaturePointY <== SignaturePoint[1],
         messageHash   <== PoseidonHasher(2)([PLATFORM_NAME, PollId])
     );
     sigValid === 1;
 
     signal sigHash <== PoseidonHasher(3)([
-        PrimarySignatureScalar,
-        PrimarySignaturePoint[0],
-        PrimarySignaturePoint[1]
+        SignatureScalar,
+        SignaturePoint[0],
+        SignaturePoint[1]
     ]);
 
-    signal oldPkIsZero0 <== IsZero()(SecondaryKeyOld[0]);
-    signal oldPkIsZero1 <== IsZero()(SecondaryKeyOld[1]);
+    signal oldPkIsZero0 <== IsZero()(RevotingKeyOld[0]);
+    signal oldPkIsZero1 <== IsZero()(RevotingKeyOld[1]);
 
-    signal isSecondaryNewZero0 <== IsZero()(SecondaryKeyNew[0]);
-    signal isSecondaryNewZero1 <== IsZero()(SecondaryKeyNew[1]);
-    isSecondaryNewZero0 * isSecondaryNewZero1 === 0;
-    signal isSecondaryNewEqualToOld0 <== IsEqual()([SecondaryKeyNew[0], SecondaryKeyOld[0]]);
-    signal isSecondaryNewEqualToOld1 <== IsEqual()([SecondaryKeyNew[1], SecondaryKeyOld[1]]);
-    isSecondaryNewEqualToOld0 * isSecondaryNewEqualToOld1 === 0;
+    signal isRevotingNewZero0 <== IsZero()(RevotingKeyNew[0]);
+    signal isRevotingNewZero1 <== IsZero()(RevotingKeyNew[1]);
+    isRevotingNewZero0 * isRevotingNewZero1 === 0;
+    signal isRevotingNewEqualToOld0 <== IsEqual()([RevotingKeyNew[0], RevotingKeyOld[0]]);
+    signal isRevotingNewEqualToOld1 <== IsEqual()([RevotingKeyNew[1], RevotingKeyOld[1]]);
+    isRevotingNewEqualToOld0 * isRevotingNewEqualToOld1 === 0;
 
     signal coordinatorNu <== PoseidonHasher(1)([sigHash]);
 
-    signal isSecondarySigValid <== EdDSAPoseidonVerifier()(
-        publicKeyX <== SecondaryKeyOld[0],
-        publicKeyY <== SecondaryKeyOld[1],
-        signatureScalar <== SecondarySignatureScalar,
-        signaturePointX <== SecondarySignaturePoint[0],
-        signaturePointY <== SecondarySignaturePoint[1],
+    signal isRevotingSigValid <== EdDSAPoseidonVerifier()(
+        publicKeyX <== RevotingKeyOld[0],
+        publicKeyY <== RevotingKeyOld[1],
+        signatureScalar <== RevotingSignatureScalar,
+        signaturePointX <== RevotingSignaturePoint[0],
+        signaturePointY <== RevotingSignaturePoint[1],
         messageHash <== PoseidonHasher(5)([
             PLATFORM_NAME,
             sigHash,
             Choice,
-            SecondaryKeyNew[0],
-            SecondaryKeyNew[1]
+            RevotingKeyNew[0],
+            RevotingKeyNew[1]
         ])
     );
-    isSecondarySigValid === 1 - oldPkIsZero0 * oldPkIsZero1;
+    isRevotingSigValid === 1 - oldPkIsZero0 * oldPkIsZero1;
 
     assert(N_choices <= 65535);
     signal inRange <== LessEqThan(16)([Choice, N_choices]);
@@ -119,10 +119,10 @@ template Vote(DEPTH) {
     signal C_P[C_LIMBS];
     C_P[0] <== coordinatorNu;
     C_P[1] <== Choice;
-    C_P[2] <== SecondaryKeyOld[0];
-    C_P[3] <== SecondaryKeyOld[1];
-    C_P[4] <== SecondaryKeyNew[0];
-    C_P[5] <== SecondaryKeyNew[1];
+    C_P[2] <== RevotingKeyOld[0];
+    C_P[3] <== RevotingKeyOld[1];
+    C_P[4] <== RevotingKeyNew[0];
+    C_P[5] <== RevotingKeyNew[1];
 
     component cDec = PoseidonDecrypt(C_LIMBS);
     cDec.key <== coordinatorSharedKey;

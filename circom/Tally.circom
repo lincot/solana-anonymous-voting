@@ -10,7 +10,7 @@ include "poseidon-cipher.circom";
 include "ecdh.circom";
 
 template Tally(DEPTH, MAX_CHOICES, MAX_BATCH) {
-    var LIMBS = 6; // nullifier, choice, SecondaryKeyOld[2], SecondaryKeyNew[2]
+    var LIMBS = 6; // nullifier, choice, RevotingKeyOld[2], RevotingKeyNew[2]
     var PAD = (LIMBS % 3 == 0) ? LIMBS : LIMBS + (3 - (LIMBS % 3));
     var CT_LEN = PAD + 1;
 
@@ -35,7 +35,7 @@ template Tally(DEPTH, MAX_CHOICES, MAX_BATCH) {
 
     signal input Siblings[MAX_BATCH][DEPTH];
     signal input PrevChoice[MAX_BATCH];
-    signal input SecondaryKeyOldActual[MAX_BATCH][2];
+    signal input RevotingKeyOldActual[MAX_BATCH][2];
 
     signal input NoAux[MAX_BATCH];
     signal input AuxKey[MAX_BATCH];
@@ -53,8 +53,8 @@ template Tally(DEPTH, MAX_CHOICES, MAX_BATCH) {
 
     signal nu[MAX_BATCH];
     signal choice[MAX_BATCH];
-    signal SecondaryKeyOldFromMsg[MAX_BATCH][2];
-    signal SecondaryKeyNew[MAX_BATCH][2];
+    signal RevotingKeyOldFromMsg[MAX_BATCH][2];
+    signal RevotingKeyNew[MAX_BATCH][2];
 
     signal idxBits[MAX_BATCH][DEPTH];
     signal nuLo[MAX_BATCH];
@@ -106,25 +106,25 @@ template Tally(DEPTH, MAX_CHOICES, MAX_BATCH) {
         dec[i].ciphertext <== CT[i];
         nu[i] <== dec[i].decrypted[0];
         choice[i] <== dec[i].decrypted[1];
-        SecondaryKeyOldFromMsg[i][0] <== dec[i].decrypted[2];
-        SecondaryKeyOldFromMsg[i][1] <== dec[i].decrypted[3];
-        SecondaryKeyNew[i][0] <== dec[i].decrypted[4];
-        SecondaryKeyNew[i][1] <== dec[i].decrypted[5];
+        RevotingKeyOldFromMsg[i][0] <== dec[i].decrypted[2];
+        RevotingKeyOldFromMsg[i][1] <== dec[i].decrypted[3];
+        RevotingKeyNew[i][0] <== dec[i].decrypted[4];
+        RevotingKeyNew[i][1] <== dec[i].decrypted[5];
 
         leafPrevFromMsg[i] <== PoseidonHasher(3)([
             PrevChoice[i],
-            SecondaryKeyOldFromMsg[i][0],
-            SecondaryKeyOldFromMsg[i][1]
+            RevotingKeyOldFromMsg[i][0],
+            RevotingKeyOldFromMsg[i][1]
         ]);
         leafPrevActual[i] <== PoseidonHasher(3)([
             PrevChoice[i],
-            SecondaryKeyOldActual[i][0],
-            SecondaryKeyOldActual[i][1]
+            RevotingKeyOldActual[i][0],
+            RevotingKeyOldActual[i][1]
         ]);
         leafNew[i] <== PoseidonHasher(3)([
             choice[i],
-            SecondaryKeyNew[i][0],
-            SecondaryKeyNew[i][1]
+            RevotingKeyNew[i][0],
+            RevotingKeyNew[i][1]
         ]);
 
         indexLessThan[i] <== LessThan(16)([i, BatchLen]);

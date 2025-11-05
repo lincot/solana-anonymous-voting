@@ -1,19 +1,20 @@
-import { buildEddsa, buildPoseidon } from "circomlibjs";
-import { randomBytes } from "crypto";
-import { toBytesBE32Buf } from "../helpers/utils.ts";
-import { bytes2Hex } from "@iden3/js-merkletree";
+import { buildBabyjub, buildEddsa } from "circomlibjs";
+import { genBabyJubKeypair } from "../helpers/key.ts";
+import { bytesToHex } from "@noble/hashes/utils";
 
 async function main(): Promise<void> {
-  const poseidon = await buildPoseidon();
+  const babyjub = await buildBabyjub();
   const eddsa = await buildEddsa();
-  const F = poseidon.F;
+  const F = babyjub.F;
 
-  const prvHex = "0x" + randomBytes(250).toString("hex");
-  const prv = BigInt(prvHex);
-  const pub = eddsa.prv2pub(F.e(prv));
-  const pubHex = pub.map((x) => bytes2Hex(toBytesBE32Buf(F.toObject(x))));
+  const { prv, pub } = genBabyJubKeypair(babyjub, eddsa);
 
-  console.log(`Private key: ${prvHex}\nPub: 0x${pubHex[0]} 0x${pubHex[1]}`);
+  const pubHex = pub.map((x) => F.toObject(x).toString(16));
+  const prvHex = bytesToHex(prv);
+
+  console.log(
+    `Private key: 0x${prvHex}\nPublic key: 0x${pubHex[0]} 0x${pubHex[1]}`,
+  );
 }
 
 main();

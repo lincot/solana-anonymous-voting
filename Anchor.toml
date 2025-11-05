@@ -6,11 +6,11 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-anon-vote = "ANVC5LJkZ1zD3KrRFUR77NkZCiDVqWjNViZsuhm3Ajkv"
+anon-vote = "MootG8ueTooVorJJq3kxdXLLg59ZW6phaHpoWeSySqB"
 zk-relayer = "re1AjD8N1s4qZdKqJGNCjWRWcRS6jWoxVGw2ZXoMn7u"
 
 [programs.devnet]
-anon-vote = "ANVC5LJkZ1zD3KrRFUR77NkZCiDVqWjNViZsuhm3Ajkv"
+anon-vote = "MootG8ueTooVorJJq3kxdXLLg59ZW6phaHpoWeSySqB"
 zk-relayer = "re1AjD8N1s4qZdKqJGNCjWRWcRS6jWoxVGw2ZXoMn7u"
 
 [test.validator]

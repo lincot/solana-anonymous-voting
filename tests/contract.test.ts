@@ -55,8 +55,8 @@ import {
 import { poseidonDecrypt, poseidonEncrypt } from "@zk-kit/poseidon-cipher";
 import { groth16 } from "snarkjs";
 import { readFileSync } from "fs";
-import { genBabyJubKeypair, randomScalar } from "./helpers.ts";
-import { compressProofForSolana, serProof } from "../helpers/exportSolana.ts";
+import { genBabyJubKeypair, randomScalar } from "../helpers/key.ts";
+import { compressProof } from "../helpers/compressSolana.ts";
 import { getMerkleProof, getMerkleRoot } from "../helpers/merkletree.ts";
 import {
   CircomProcessorProof,
@@ -106,8 +106,8 @@ let babyjub: BabyJub;
 let F: any;
 
 type Voter = {
-  prvPrimary: Uint8Array;
-  pubPrimary: [Uint8Array, Uint8Array];
+  prv: Uint8Array;
+  pub: [Uint8Array, Uint8Array];
 };
 
 const voters: Voter[] = [];
@@ -154,12 +154,14 @@ before(async () => {
   F = poseidon.F;
 
   for (let i = 0; i < N_VOTERS; i++) {
-    const prvPrimary = F.e(i);
-    const pubPrimary = eddsa.prv2pub(prvPrimary);
-    voters.push({ prvPrimary, pubPrimary });
+    const { prv, pub } = genBabyJubKeypair(
+      babyjub,
+      eddsa,
+    );
+    voters.push({ prv, pub });
     census.push(
       F.toObject(
-        poseidon([F.toObject(pubPrimary[0]), F.toObject(pubPrimary[1])]),
+        poseidon([F.toObject(pub[0]), F.toObject(pub[1])]),
       ),
     );
   }
@@ -176,11 +178,9 @@ describe("ZK Relayer", () => {
   const tempAdmin = new Keypair();
 
   test("initialize", async () => {
-    const { sk: sk_, PKx: R_PKx0, PKy: R_PKy0 } = await genBabyJubKeypair(
-      babyjub,
-    );
+    const { sk: sk_, pub } = genBabyJubKeypair(babyjub, eddsa);
     R_SK = sk_;
-    relayerPK = [F.toObject(R_PKx0), F.toObject(R_PKy0)];
+    relayerPK = [F.toObject(pub[0]), F.toObject(pub[1])];
 
     const relayerDecryptionKey = {
       x: toBytesBE32(relayerPK[0]),
@@ -287,12 +287,10 @@ describe("Anon Vote", () => {
   });
 
   test("createPoll", async () => {
-    const { sk: sk_, PKx: C_PKx0, PKy: C_PKy0 } = await genBabyJubKeypair(
-      babyjub,
-    );
+    const { sk: sk_, pub } = genBabyJubKeypair(babyjub, eddsa);
     C_SK = sk_;
-    C_PKx = C_PKx0;
-    C_PKy = C_PKy0;
+    C_PKx = pub[0];
+    C_PKy = pub[1];
     const coordinatorKey = {
       x: toBytesBE32(F.toObject(C_PKx)),
       y: toBytesBE32(F.toObject(C_PKy)),
@@ -362,29 +360,31 @@ describe("Anon Vote", () => {
     const quotaMt = new Merkletree(relayerDb, true, STATE_DEPTH);
     const quotaMtMap = new Map();
 
-    const prvSecondary = F.e(42n);
-    const pubSecondary = eddsa.prv2pub(prvSecondary);
+    const { prv: prvRevoting, pub: pubRevoting } = genBabyJubKeypair(
+      babyjub,
+      eddsa,
+    );
 
     for (let i = 0; i < BatchLen; i++) {
       const voterIndex = BatchLen > 2 && i >= BatchLen - 2
         ? voters.length - 1
         : i;
-      const { prvPrimary, pubPrimary } = voters[voterIndex];
+      const { prv, pub } = voters[voterIndex];
       const Nonce = 5n + BigInt(i);
       const M_N = poseidon([PLATFORM_NAME, PollId]);
-      const sigN = eddsa.signPoseidon(prvPrimary, M_N);
-      expect(eddsa.verifyPoseidon(M_N, sigN, pubPrimary)).to.be.true;
+      const sigN = eddsa.signPoseidon(prv, M_N);
+      expect(eddsa.verifyPoseidon(M_N, sigN, pub)).to.be.true;
 
-      const PrimarySignaturePoint = [
+      const SignaturePoint = [
         F.toObject(sigN.R8[0]),
         F.toObject(sigN.R8[1]),
       ];
-      const PrimarySignatureScalar = sigN.S;
+      const SignatureScalar = sigN.S;
 
       const sigHash = F.toObject(poseidon([
-        PrimarySignatureScalar,
-        PrimarySignaturePoint[0],
-        PrimarySignaturePoint[1],
+        SignatureScalar,
+        SignaturePoint[0],
+        SignaturePoint[1],
       ]));
       const Choice = BigInt((i % nChoices) + 1); // 1..nChoices
 
@@ -398,40 +398,40 @@ describe("Anon Vote", () => {
       ];
 
       // normal votes, then key change, then a valid vote with new key, then an invalid vote
-      const SecondaryKeyOld = i == BatchLen - 2 && BatchLen > 2
-        ? pubSecondary.map((x) => F.toObject(x))
+      const RevotingKeyOld = i == BatchLen - 2 && BatchLen > 2
+        ? pubRevoting.map((x) => F.toObject(x))
         : [0n, 0n];
-      const SecondaryKeyNew = i == BatchLen - 3 && BatchLen > 2
-        ? pubSecondary.map((x) => F.toObject(x))
+      const RevotingKeyNew = i == BatchLen - 3 && BatchLen > 2
+        ? pubRevoting.map((x) => F.toObject(x))
         : [42n, 42n];
 
-      let SecondarySignaturePoint = [0n, 0n];
-      let SecondarySignatureScalar = 0n;
+      let RevotingSignaturePoint = [0n, 0n];
+      let RevotingSignatureScalar = 0n;
       if (i == BatchLen - 2 && BatchLen > 2) {
         const M_N = poseidon([
           PLATFORM_NAME,
           sigHash,
           Choice,
-          SecondaryKeyNew[0],
-          SecondaryKeyNew[1],
+          RevotingKeyNew[0],
+          RevotingKeyNew[1],
         ]);
-        const sigN = eddsa.signPoseidon(prvSecondary, M_N);
+        const sigN = eddsa.signPoseidon(prvRevoting, M_N);
 
-        SecondarySignaturePoint = [
+        RevotingSignaturePoint = [
           F.toObject(sigN.R8[0]),
           F.toObject(sigN.R8[1]),
         ];
-        SecondarySignatureScalar = sigN.S;
+        RevotingSignatureScalar = sigN.S;
       }
 
       const nuCoordinator = F.toObject(poseidon([sigHash]));
       const C_P = [
         nuCoordinator,
         Choice,
-        SecondaryKeyOld[0],
-        SecondaryKeyOld[1],
-        SecondaryKeyNew[0],
-        SecondaryKeyNew[1],
+        RevotingKeyOld[0],
+        RevotingKeyOld[1],
+        RevotingKeyNew[0],
+        RevotingKeyNew[1],
       ];
       const C_CT = poseidonEncrypt(C_P, C_S, Nonce);
 
@@ -486,14 +486,14 @@ describe("Anon Vote", () => {
         CensusRoot,
         PollId,
         N_choices,
-        SecondaryKeyNew,
-        SecondaryKeyOld,
-        SecondarySignaturePoint,
-        SecondarySignatureScalar,
+        RevotingKeyNew,
+        RevotingKeyOld,
+        RevotingSignaturePoint,
+        RevotingSignatureScalar,
 
-        PrimaryKey: [F.toObject(pubPrimary[0]), F.toObject(pubPrimary[1])],
-        PrimarySignaturePoint,
-        PrimarySignatureScalar,
+        Key: [F.toObject(pub[0]), F.toObject(pub[1])],
+        SignaturePoint,
+        SignatureScalar,
 
         Path: path,
         PathPos: pathPos,
@@ -536,7 +536,7 @@ describe("Anon Vote", () => {
       );
       expect(await groth16.verify(vkey, publicSignals, proof)).to.be.true;
 
-      const serializedProof = compressProofForSolana(proof);
+      const serializedProof = compressProof(proof);
 
       const eventPromise: Promise<void> = new Promise((resolve, reject) => {
         onVote((event) => {
@@ -643,7 +643,7 @@ describe("Anon Vote", () => {
         const ok = await groth16.verify(vkey, publicSignals, relayerProof);
         expect(ok).to.equal(true);
 
-        const serializedRelayerProof = compressProofForSolana(relayerProof);
+        const serializedRelayerProof = compressProof(relayerProof);
 
         await sendIx(
           await voteWithRelayer({
@@ -711,7 +711,6 @@ describe("Anon Vote", () => {
     const Root_before = (await mt.root()).bigInt();
     expect(Root_before).to.equal(0n);
 
-    let curRoot = Root_before;
     const H_before = 0n;
     let H = H_before;
     const Tally_before = Array<bigint>(MAX_CHOICES).fill(0n);
@@ -732,16 +731,16 @@ describe("Anon Vote", () => {
     const NoAux: bigint[] = [];
     const AuxKey: bigint[] = [];
     const AuxValue: bigint[] = [];
-    const SecondaryKeyOldActual: bigint[][] = [];
+    const RevotingKeyOldActual: bigint[][] = [];
 
     for (const message of messages) {
       const [
         nu,
         choice,
-        secondaryKeyOldFromMsg0,
-        secondaryKeyOldFromMsg1,
-        secondaryKeyNew0,
-        secondaryKeyNew1,
+        revotingKeyOldFromMsg0,
+        revotingKeyOldFromMsg1,
+        revotingKeyNew0,
+        revotingKeyNew1,
       ] = poseidonDecrypt(
         message.ciphertext,
         mulPointEscalar(message.ephKey, C_SK),
@@ -751,19 +750,19 @@ describe("Anon Vote", () => {
 
       const idx = nu & ((1n << BigInt(STATE_DEPTH)) - 1n);
 
-      const secondaryKeyNew = [secondaryKeyNew0, secondaryKeyNew1];
+      const revotingKeyNew = [revotingKeyNew0, revotingKeyNew1];
 
       const prevLeaf = mtMap.get(idx) ?? {
         choice: 0n,
-        secondaryKey: [0n, 0n],
+        revotingKey: [0n, 0n],
       };
-      const voteIsValid = prevLeaf.secondaryKey[0] == secondaryKeyOldFromMsg0 &&
-        prevLeaf.secondaryKey[1] == secondaryKeyOldFromMsg1;
+      const voteIsValid = prevLeaf.revotingKey[0] == revotingKeyOldFromMsg0 &&
+        prevLeaf.revotingKey[1] == revotingKeyOldFromMsg1;
       if (voteIsValid) {
-        mtMap.set(idx, { choice, secondaryKey: secondaryKeyNew });
+        mtMap.set(idx, { choice, revotingKey: revotingKeyNew });
       }
       const leaf = F.toObject(
-        poseidon([choice, secondaryKeyNew[0], secondaryKeyNew[1]]),
+        poseidon([choice, revotingKeyNew[0], revotingKeyNew[1]]),
       );
       let proof: CircomProcessorProof | CircomVerifierProof;
       if (voteIsValid) {
@@ -795,7 +794,7 @@ describe("Anon Vote", () => {
       CT.push(message.ciphertext);
       Siblings.push(siblings);
       PrevChoice.push(prevLeaf.choice);
-      SecondaryKeyOldActual.push(prevLeaf.secondaryKey);
+      RevotingKeyOldActual.push(prevLeaf.revotingKey);
 
       const msgHash = F.toObject(
         poseidon([
@@ -808,7 +807,6 @@ describe("Anon Vote", () => {
       H = F.toObject(poseidon([H, msgHash]));
 
       if (voteIsValid) {
-        curRoot = (await mt.root()).bigInt();
         if (prevLeaf.choice !== 0n) tally[Number(prevLeaf.choice) - 1] -= 1n;
         tally[Number(choice) - 1] += 1n;
       }
@@ -824,8 +822,8 @@ describe("Anon Vote", () => {
       NoAux.push(NoAux[NoAux.length - 1]);
       AuxKey.push(AuxKey[AuxKey.length - 1]);
       AuxValue.push(AuxValue[AuxValue.length - 1]);
-      SecondaryKeyOldActual.push(
-        SecondaryKeyOldActual[SecondaryKeyOldActual.length - 1],
+      RevotingKeyOldActual.push(
+        RevotingKeyOldActual[RevotingKeyOldActual.length - 1],
       );
     }
 
@@ -843,7 +841,7 @@ describe("Anon Vote", () => {
       CT,
       Siblings,
       PrevChoice,
-      SecondaryKeyOldActual,
+      RevotingKeyOldActual,
       NoAux,
       AuxKey,
       AuxValue,
@@ -863,7 +861,7 @@ describe("Anon Vote", () => {
     expect(BigInt(publicSignals[4])).to.equal(H_before);
     expect(BigInt(publicSignals[5])).to.equal(TallyHash_before);
 
-    expect(Root_after).to.equal(curRoot);
+    expect(Root_after).to.equal((await mt.root()).bigInt());
     expect(H_after).to.equal(H);
     expect(TallyHash_after).to.equal(
       F.toObject(poseidon([TallySalt_after, ...tally])),
@@ -920,7 +918,7 @@ describe("Anon Vote", () => {
       }),
     )).to.rejectedWith("IncorrectTally");
 
-    const serializedProof = serProof(proof, true);
+    const serializedProof = compressProof(proof);
     await sendIx(
       await tallyBatch({
         pollId,

@@ -2,6 +2,7 @@ use actix_cors::Cors;
 use actix_web::{get, web, App, HttpServer, Responder};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DisplayFromStr};
 use sqlx::PgPool;
 
 use crate::config::SslConfig;
@@ -45,21 +46,25 @@ impl Server {
     }
 }
 
+#[serde_as]
 #[derive(Serialize)]
 struct PollOut {
-    poll_id: i64,
+    #[serde_as(as = "DisplayFromStr")]
+    poll_id: u64,
     title: String,
     choices: Vec<String>,
     census_root: String,
     coordinator_key: (String, String),
-    voting_start_time: i64,
-    voting_end_time: i64,
-    fee: i64,
-    platform_fee: i64,
+    voting_start_time: u64,
+    voting_end_time: u64,
+    #[serde_as(as = "DisplayFromStr")]
+    fee: u64,
+    #[serde_as(as = "DisplayFromStr")]
+    platform_fee: u64,
     fee_destination: String,
     description_url: String,
     census_url: String,
-    tally_finished: bool,
+    tally: Option<Vec<u64>>,
 }
 
 #[get("/polls/{poll_id}")]
@@ -72,7 +77,7 @@ async fn get_poll(
         r#"
         SELECT poll_id, title, choices, census_root, coord_x, coord_y,
                voting_start_time, voting_end_time, fee, platform_fee,
-               fee_destination, description_url, census_url, tally_finished
+               fee_destination, description_url, census_url, tally
         FROM polls WHERE poll_id = $1 AND title IS NOT NULL AND census_valid IS TRUE
         "#,
         poll_id
@@ -83,7 +88,7 @@ async fn get_poll(
 
     if let Some(p) = rec {
         let out = PollOut {
-            poll_id: p.poll_id,
+            poll_id: p.poll_id as u64,
             title: p
                 .title
                 .expect("title expected to be not null as per query constraint"),
@@ -92,14 +97,14 @@ async fn get_poll(
                 .expect("choices are expected to be set atomically with title"),
             census_root: hex::encode(&p.census_root),
             coordinator_key: (hex::encode(&p.coord_x), hex::encode(&p.coord_y)),
-            voting_start_time: p.voting_start_time,
-            voting_end_time: p.voting_end_time,
-            fee: p.fee,
-            platform_fee: p.platform_fee,
+            voting_start_time: p.voting_start_time as u64,
+            voting_end_time: p.voting_end_time as u64,
+            fee: p.fee as u64,
+            platform_fee: p.platform_fee as u64,
             fee_destination: p.fee_destination,
             description_url: p.description_url,
             census_url: p.census_url,
-            tally_finished: p.tally_finished,
+            tally: p.tally.map(bytemuck::cast_vec),
         };
         Ok(web::Json(out))
     } else {
@@ -107,12 +112,15 @@ async fn get_poll(
     }
 }
 
+#[serde_as]
 #[derive(Serialize)]
 struct VoteOut {
-    id: i64,
+    #[serde_as(as = "DisplayFromStr")]
+    id: u64,
     eph_x: String,
     eph_y: String,
-    nonce: i64,
+    #[serde_as(as = "DisplayFromStr")]
+    nonce: u64,
     ciphertext: String,
 }
 
@@ -131,6 +139,15 @@ async fn list_votes(
     let poll_id = path.into_inner();
     let limit = query.limit.unwrap_or(100).clamp(1, 1000);
     let after_id = query.after.unwrap_or(0);
+
+    let total = sqlx::query_scalar!(
+        r#"SELECT COUNT(*)::BIGINT FROM votes WHERE poll_id = $1"#,
+        poll_id
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|_| actix_web::error::ErrorInternalServerError("db"))?
+    .unwrap_or(0);
 
     let rows = sqlx::query!(
         r#"
@@ -158,10 +175,10 @@ async fn list_votes(
         .into_iter()
         .take(limit as usize)
         .map(|r| VoteOut {
-            id: r.id,
+            id: r.id as u64,
             eph_x: hex::encode(&r.eph_x),
             eph_y: hex::encode(&r.eph_y),
-            nonce: r.nonce,
+            nonce: r.nonce as u64,
             ciphertext: hex::encode(&r.ciphertext),
         })
         .collect();
@@ -170,16 +187,23 @@ async fn list_votes(
     struct Page {
         items: Vec<VoteOut>,
         next_after: Option<i64>,
+        total: u64,
     }
 
-    Ok(web::Json(Page { items, next_after }))
+    Ok(web::Json(Page {
+        items,
+        next_after,
+        total: total as u64,
+    }))
 }
 
+#[serde_as]
 #[derive(Serialize)]
 struct PollItem {
-    poll_id: i64,
-    voting_start_time: i64,
-    voting_end_time: i64,
+    #[serde_as(as = "DisplayFromStr")]
+    poll_id: u64,
+    voting_start_time: u64,
+    voting_end_time: u64,
     title: String,
     choices: Vec<String>,
 }
@@ -187,7 +211,7 @@ struct PollItem {
 #[derive(Serialize)]
 struct PollPage {
     items: Vec<PollItem>,
-    next_after: Option<i64>,
+    total: u64,
 }
 
 #[derive(Deserialize)]
@@ -208,6 +232,12 @@ async fn polls_by_voter(
     let limit = q.limit.unwrap_or(50).clamp(1, 500);
     let after = q.after.unwrap_or(0);
 
+    let total = sqlx::query_scalar!(r#"SELECT COUNT(*)::BIGINT FROM polls"#,)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| actix_web::error::ErrorInternalServerError("db"))?
+        .unwrap_or(0) as u64;
+
     let rows = sqlx::query!(
         r#"
         SELECT p.poll_id, p.title, p.choices, p.voting_start_time,
@@ -215,31 +245,25 @@ async fn polls_by_voter(
         FROM voter_polls vp
         JOIN polls p ON p.poll_id = vp.poll_id
             AND census_valid = TRUE AND title IS NOT NULL
-        WHERE vp.key_hash = $1 AND p.poll_id > $2
-        ORDER BY p.poll_id ASC
+        WHERE vp.key_hash = $1 AND p.id <= $2
+        ORDER BY p.id DESC
         LIMIT $3
         "#,
         &leaf_arr,
-        after,
+        total as i64 - after,
         limit + 1
     )
     .fetch_all(&state.pool)
     .await
     .map_err(|_| actix_web::error::ErrorInternalServerError("db"))?;
 
-    let next_after = if rows.len() > limit as usize {
-        Some(rows[limit as usize - 1].poll_id)
-    } else {
-        None
-    };
-
     let items = rows
         .into_iter()
         .take(limit as usize)
         .map(|r| PollItem {
-            poll_id: r.poll_id,
-            voting_start_time: r.voting_start_time,
-            voting_end_time: r.voting_end_time,
+            poll_id: r.poll_id as u64,
+            voting_start_time: r.voting_start_time as u64,
+            voting_end_time: r.voting_end_time as u64,
             title: r
                 .title
                 .expect("title expected to be not null as per query constraint"),
@@ -249,7 +273,7 @@ async fn polls_by_voter(
         })
         .collect();
 
-    Ok(web::Json(PollPage { items, next_after }))
+    Ok(web::Json(PollPage { items, total }))
 }
 
 #[actix_web::get("/coordinators/{xy}/polls")]
@@ -264,38 +288,38 @@ async fn polls_by_coordinator(
     let limit = q.limit.unwrap_or(50).clamp(1, 500);
     let after = q.after.unwrap_or(0);
 
+    let total = sqlx::query_scalar!(r#"SELECT COUNT(*)::BIGINT FROM polls"#,)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| actix_web::error::ErrorInternalServerError("db"))?
+        .unwrap_or(0) as u64;
+
     let rows = sqlx::query!(
         r#"
         SELECT poll_id, title, choices, voting_start_time, voting_end_time,
                description_url, census_url
         FROM polls
-        WHERE coord_x=$1 AND coord_y=$2 AND poll_id > $3 AND census_valid = TRUE
-            AND title IS NOT NULL
-        ORDER BY poll_id ASC
+        WHERE coord_x=$1 AND coord_y=$2 AND id <= $3
+            AND census_valid = TRUE AND title IS NOT NULL
+        ORDER BY id DESC
         LIMIT $4
         "#,
         &xy_arr[..32],
         &xy_arr[32..],
-        after,
+        total as i64 - after,
         limit + 1
     )
     .fetch_all(&state.pool)
     .await
     .map_err(|_| actix_web::error::ErrorInternalServerError("db"))?;
 
-    let next_after = if rows.len() > limit as usize {
-        Some(rows[limit as usize - 1].poll_id)
-    } else {
-        None
-    };
-
     let items = rows
         .into_iter()
         .take(limit as usize)
         .map(|r| PollItem {
-            poll_id: r.poll_id,
-            voting_start_time: r.voting_start_time,
-            voting_end_time: r.voting_end_time,
+            poll_id: r.poll_id as u64,
+            voting_start_time: r.voting_start_time as u64,
+            voting_end_time: r.voting_end_time as u64,
             title: r
                 .title
                 .expect("title expected to be not null as per query constraint"),
@@ -305,5 +329,5 @@ async fn polls_by_coordinator(
         })
         .collect();
 
-    Ok(web::Json(PollPage { items, next_after }))
+    Ok(web::Json(PollPage { items, total }))
 }

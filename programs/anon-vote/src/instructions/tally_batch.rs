@@ -10,13 +10,16 @@ pub struct TallyBatch<'info> {
 
 pub fn tally_batch(
     ctx: Context<TallyBatch>,
-    proof: Proof,
+    proof: CompressedProof,
     root_after: [u8; 32],
     running_msg_hash_after: [u8; 32],
     tally_hash_after: [u8; 32],
 ) -> Result<()> {
     let tally = &mut ctx.accounts.tally;
 
+    let proof = proof
+        .decompress()
+        .map_err(|_| AnonVoteError::ProofDecompressionError)?;
     let public_inputs = [
         root_after,
         running_msg_hash_after,

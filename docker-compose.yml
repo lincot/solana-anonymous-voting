@@ -1,0 +1,38 @@
+services:
+  pg:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: anonvote
+      POSTGRES_PASSWORD: anonvote
+      POSTGRES_DB: anonvote
+    ports: ["5432:5432"]
+    volumes:
+      - pgroot:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U anonvote -d anonvote"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+volumes:
+  pgroot:
+
+
+
+# services:
+#   pg:
+#     image: postgres:17
+#     environment:
+#       POSTGRES_USER: anonvote
+#       POSTGRES_PASSWORD: anonvote
+#       POSTGRES_DB: anonvote
+#     ports: ["5432:5432"]
+#     volumes:
+#       - pgdata:/var/lib/postgresql/data
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U anonvote -d anonvote"]
+#       interval: 3s
+#       timeout: 3s
+#       retries: 10
+
+# volumes:
+#   pgdata:

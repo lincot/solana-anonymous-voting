@@ -18,7 +18,7 @@ declare_id!("re1AjD8N1s4qZdKqJGNCjWRWcRS6jWoxVGw2ZXoMn7u");
 /// The list of allowed programs. Relayer has to trust the program, otherwise
 /// a transaction could fail and waste network fee. Transaction simulation
 /// wouldn't help with that.
-const ALLOWED_PROGRAMS: &[Pubkey] = &[pubkey!("ANVC5LJkZ1zD3KrRFUR77NkZCiDVqWjNViZsuhm3Ajkv")];
+const ALLOWED_PROGRAMS: &[Pubkey] = &[pubkey!("MootG8ueTooVorJJq3kxdXLLg59ZW6phaHpoWeSySqB")];
 
 #[program]
 pub mod zk_relayer {

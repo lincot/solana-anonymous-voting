@@ -49,9 +49,12 @@ pub fn finish_tally(ctx: Context<FinishTally>, tally: Vec<u64>, tally_salt: u64)
         AnonVoteError::IncorrectTally
     );
 
-    poll.tally = tally;
+    poll.tally = tally.clone();
 
-    emit!(FinishTallyEvent { poll_id: poll.id });
+    emit!(FinishTallyEvent {
+        poll_id: poll.id,
+        tally
+    });
 
     Ok(())
 }

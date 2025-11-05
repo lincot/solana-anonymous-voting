@@ -49,10 +49,10 @@ async fn main() {
 
     let url = std::env::var("DATABASE_URL").expect("expected DATABASE_URL to be set");
     let pg_pool = PgPoolOptions::new()
-        .max_connections(2)
+        .max_connections(4)
         .connect(&url)
         .await
-        .unwrap();
+        .expect("Expected postgres to connect");
     CensusManager::enqueue_unfinished(&pg_pool, &census_sender)
         .await
         .unwrap();
