@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2024 Entangle Technologies Ltd.
+// SPDX-FileCopyrightText: 2025 lincot
 use anchor_lang::{AnchorDeserialize, Discriminator};
 use base64::prelude::*;
 use tracing::error;

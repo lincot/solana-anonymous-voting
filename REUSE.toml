@@ -1,0 +1,6 @@
+version = 1
+
+[[annotations]]
+path = ["***"]
+SPDX-FileCopyrightText = "2025 lincot"
+SPDX-License-Identifier = "MPL-2.0"

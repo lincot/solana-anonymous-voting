@@ -1,5 +1,10 @@
-pragma circom 2.2.2;
+// This file is part of project MACI, available from its original location at
+// https://github.com/privacy-ethereum/maci/blob/061530b21c50baa0b21383621035c383f0b5b240/packages/circuits/circom/utils/PoseidonHasher.circom
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Ethereum Foundation
+pragma circom 2.0.0;
 
+// zk-kit imports
 include "./poseidon-cipher.circom";
 
 /**

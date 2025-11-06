@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2024 Entangle Technologies Ltd.
+// SPDX-FileCopyrightText: 2025 lincot
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use futures_util::stream::{self, StreamExt};
 use solana_client::{
