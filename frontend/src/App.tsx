@@ -2074,7 +2074,7 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
       const newRec = await RK.generateForPoll();
       const newSec: [bigint, bigint] = newRec.pub;
 
-      const C_PK: [bigint, bigint] = [
+      const PK: [bigint, bigint] = [
         BigInt("0x" + poll.coordinator_key[0]),
         BigInt("0x" + poll.coordinator_key[1]),
       ];
@@ -2135,10 +2135,10 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
       for (let i = 0; i < rnd.length; i++) r = (r << 8n) | BigInt(rnd[i]);
       r = (r % babyjub.subOrder) || 1n;
       const Rraw = babyjub.mulPointEscalar(babyjub.Base8, r);
-      const C_Sraw = babyjub.mulPointEscalar([F.e(C_PK[0]), F.e(C_PK[1])], r);
-      const C_S: [bigint, bigint] = [
-        F.toObject(C_Sraw[0]),
-        F.toObject(C_Sraw[1]),
+      const Sraw = babyjub.mulPointEscalar([F.e(PK[0]), F.e(PK[1])], r);
+      const S: [bigint, bigint] = [
+        F.toObject(Sraw[0]),
+        F.toObject(Sraw[1]),
       ];
 
       const R: [bigint, bigint] = [F.toObject(Rraw[0]), F.toObject(Rraw[1])];
@@ -2165,7 +2165,7 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
       }
 
       const nuCoordinator = F.toObject(poseidon([sigHash]));
-      const C_P = [
+      const P = [
         nuCoordinator,
         Choice,
         RevotingKeyOld[0],
@@ -2178,10 +2178,9 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
         crypto.getRandomValues(u);
         return (BigInt(u[0]) << 32n) | BigInt(u[1]);
       })();
-      const C_CT = poseidonEncrypt(C_P, C_S, Nonce);
+      const CT = poseidonEncrypt(P, S, Nonce);
 
-      const R_CT = [0n, 0n, 0n, 0n];
-      const CoordinatorPK = C_PK;
+      const CoordinatorPK = PK;
 
       setStage("Generating proof… (this may take a bit)");
       const inputs = {
@@ -2200,10 +2199,9 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
         Choice,
         ephR: r,
         CoordinatorPK,
-        RelayerPK: [0n, 0n],
+        RelayerId: 0n,
         Nonce,
-        C_CT,
-        R_CT,
+        CT,
       };
       const { proof } = await groth16.fullProve(
         inputs,
@@ -2217,7 +2215,7 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
       const ix: InstructionWithCu = await vote({
         payer: wallet.publicKey,
         pollId: PollId,
-        ciphertext: C_CT.map((c) => Array.from(toBytes32(c))),
+        ciphertext: CT.map((c) => Array.from(toBytes32(c))),
         ephKey: {
           x: Array.from(toBytes32(R[0])),
           y: Array.from(toBytes32(R[1])),
@@ -2399,9 +2397,9 @@ const TallyPage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
   const [clientTally, setClientTally] = useState<number[] | null>(null);
 
   const keypair = KR.accounts[KR.active];
-  const accountId = `${keypair.pub[0].toString(16)}:${
-    keypair.pub[1].toString(16)
-  }`;
+  const accountId = keypair
+    ? `${keypair.pub[0].toString(16)}:${keypair.pub[1].toString(16)}`
+    : "";
 
   const clock = usePollClock(
     poll?.voting_start_time ?? 0,
@@ -2579,7 +2577,7 @@ const TallyPage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
       }
       const Root_before = (await mt.root()).bigInt();
 
-      const C_SK = keypair.sk;
+      const SK = keypair.sk;
       let H = BigInt(store.runningMsgHashHex);
       const tallyCounts = store.tallyCounts.map((x) => BigInt(x));
       const leavesMap = { ...store.leaves };
@@ -2613,7 +2611,7 @@ const TallyPage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
           for (let j = 0; j < 32; j++) x = (x << 8n) | BigInt(buf[i + j]);
           ctWords.push(x);
         }
-        const shared = mulPointEscalar(R, C_SK);
+        const shared = mulPointEscalar(R, SK);
         const plain = poseidonDecrypt(ctWords, shared, nonce, LIMBS);
         const [
           nu,
@@ -2720,7 +2718,7 @@ const TallyPage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
         TallySalt_after: saltAfter,
         Tally_before,
         BatchLen: BigInt(batch.length),
-        SK: C_SK,
+        SK,
         EphKey,
         Nonce,
         CT,

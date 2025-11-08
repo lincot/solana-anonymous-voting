@@ -176,7 +176,7 @@ export type VoteWithRelayerParams = {
   ephKey: Point;
   nonce: BN | bigint;
   ciphertext: number[][];
-  relayerCiphertextHash: number[];
+  relayerNuHash: number[];
   pollId: BN | bigint;
   proof: CompressedProof;
   relayerProof: CompressedProof;
@@ -190,7 +190,7 @@ export async function voteWithRelayer({
   ephKey,
   nonce,
   ciphertext,
-  relayerCiphertextHash,
+  relayerNuHash,
   pollId,
   proof,
   relayerProof,
@@ -200,16 +200,16 @@ export async function voteWithRelayer({
   const data = serializeVoteData({
     ciphertext,
     proof,
+    ephKey,
+    nonce,
   });
   return relay({
     stateId: pollId,
     relayer,
-    ciphertextHash: relayerCiphertextHash,
     data,
     discriminator: 4,
     msgHash,
-    ephKey,
-    nonce,
+    nuHash: relayerNuHash,
     proof: relayerProof,
     rootAfter,
     targetAccounts: [{
@@ -359,17 +359,29 @@ export async function withdrawPoll(
 type SerializeVoteDataParams = {
   ciphertext: number[][];
   proof: CompressedProof;
+  ephKey: Point;
+  nonce: BN | bigint;
 };
 
 function serializeVoteData({
   ciphertext,
   proof,
+  ephKey,
+  nonce,
 }: SerializeVoteDataParams): Buffer {
   const res = Buffer.alloc(
-    ciphertext.length * ciphertext[0].length + proof.a.length + proof.b.length +
+    ephKey.x.length + ephKey.y.length + 8 +
+      ciphertext.length * ciphertext[0].length + proof.a.length +
+      proof.b.length +
       proof.c.length,
   );
   let offset = 0;
+  res.set(ephKey.x, offset);
+  offset += ephKey.x.length;
+  res.set(ephKey.y, offset);
+  offset += ephKey.y.length;
+  res.set(toBN(nonce).toArrayLike(Buffer, "le", 8), offset);
+  offset += 8;
   for (const c of ciphertext) {
     res.set(c, offset);
     offset += c.length;

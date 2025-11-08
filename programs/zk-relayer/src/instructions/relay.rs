@@ -31,47 +31,38 @@ pub fn relay<'info>(
     root_after: [u8; 32],
     msg_hash: [u8; 32],
     discriminator: u8,
-    eph_key: Point,
-    nonce: u64,
-    ciphertext_hash: [u8; 32],
+    nu_hash: [u8; 32],
     data: Vec<u8>,
 ) -> Result<()> {
     let relayer = &ctx.accounts.relayer;
-    let relayer_config = &mut ctx.accounts.relayer_config;
     let relayer_state = &mut ctx.accounts.relayer_state;
     let target_program = &ctx.accounts.target_program;
-
-    let decryption_key = &relayer_config.relayer.decryption_key;
 
     let proof = proof
         .decompress()
         .map_err(|_| ZkRelayerError::ProofDecompressionError)?;
     let public_inputs = [
         root_after,
-        ciphertext_hash,
+        nu_hash,
         relayer_state.root,
         msg_hash,
         u64_to_u128_be(relayer_state.msg_limit),
-        eph_key.x,
-        eph_key.y,
-        u64_to_u128_be(nonce),
     ];
-    let mut v = Groth16Verifier::<8>::new(&proof.a, &proof.b, &proof.c, &public_inputs, &VK_RELAY)
+    let mut v = Groth16Verifier::<5>::new(&proof.a, &proof.b, &proof.c, &public_inputs, &VK_RELAY)
         .map_err(|_| ZkRelayerError::InvalidProof)?;
     v.verify().map_err(|_| ZkRelayerError::InvalidProof)?;
 
     relayer_state.root = root_after;
 
+    let mut relayer_id = relayer.key().to_bytes();
+    relayer_id[0] &= (1 << 5) - 1;
+
     let mut full_data =
-        Vec::with_capacity(1 + 2 * 32 + 8 + ciphertext_hash.len() + 32 + 2 * 32 + data.len());
+        Vec::with_capacity(1 + nu_hash.len() + msg_hash.len() + relayer_id.len() + data.len());
     full_data.push(discriminator);
-    full_data.extend(&eph_key.x);
-    full_data.extend(&eph_key.y);
-    full_data.extend(&nonce.to_le_bytes());
-    full_data.extend(&ciphertext_hash);
+    full_data.extend(&nu_hash);
     full_data.extend(&msg_hash);
-    full_data.extend(&decryption_key.x);
-    full_data.extend(&decryption_key.y);
+    full_data.extend(&relayer_id);
     full_data.extend(&data);
 
     let mut metas = Vec::with_capacity(2 + ctx.remaining_accounts.len());

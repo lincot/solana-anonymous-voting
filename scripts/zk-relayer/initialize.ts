@@ -1,22 +1,17 @@
 import * as anchor from "@coral-xyz/anchor";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet.js";
 import { initialize, toTransaction } from "@lincot/zk-relayer-sdk";
-import { hexToBytes32 } from "../../helpers/utils.ts";
 import { expect } from "chai";
 import { sendAndConfirmVersionedTx } from "../../helpers/utils.ts";
 
 async function main(): Promise<void> {
-  if (process.argv.length < 2 + 4) {
-    console.error(
-      "Usage: initialize <fee> <decryptionKeyX> <decryptionKeyY> <endpoint>",
-    );
+  if (process.argv.length < 2 + 2) {
+    console.error("Usage: initialize <fee> <endpoint>");
     process.exit(1);
   }
 
   const fee = BigInt(process.argv[2]);
-  const x = Array.from(hexToBytes32(process.argv[3]));
-  const y = Array.from(hexToBytes32(process.argv[4]));
-  const relayerEndpoint = process.argv[5];
+  const relayerEndpoint = process.argv[3];
 
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
@@ -27,7 +22,6 @@ async function main(): Promise<void> {
       admin: payer.publicKey,
       fee: fee,
       payer: payer.publicKey,
-      relayerDecryptionKey: { x, y },
       relayerEndpoint,
       relayerFeeKey: payer.publicKey,
     });

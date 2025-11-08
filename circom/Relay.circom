@@ -19,14 +19,10 @@ template Relay(DEPTH) {
     signal input MsgHash;
     signal input MsgLimit;
     signal output Root_after;
-    signal output CT_hash;
+    signal output NuHash;
 
     // ---- Private ----
-    signal input SK; // Relayer secret scalar
-
-    signal input EphKey[2];
-    signal input Nonce;
-    signal input CT[CT_LEN];
+    signal input Nu;
 
     signal input PrevCount;
     signal input SiblingsQuota[DEPTH];
@@ -42,16 +38,10 @@ template Relay(DEPTH) {
     signal lessThan <== LessThan(16)([PrevCount, MsgLimit]);
     lessThan === 1;
 
-    component dec = PoseidonDecrypt(LIMBS);
-    dec.key <== Ecdh()(SK, EphKey);
-    dec.nonce <== Nonce;
-    dec.ciphertext <== CT;
-    signal nu <== dec.decrypted[0];
-
-    signal nuLo <-- nu & ((1 << DEPTH) - 1);
-    signal nuHi <-- nu >> DEPTH;
+    signal nuLo <-- Nu & ((1 << DEPTH) - 1);
+    signal nuHi <-- Nu >> DEPTH;
     signal idxBits[DEPTH] <== Num2Bits(DEPTH)(nuLo); // Num2Bits asserts that lo is DEPTH bits
-    nu === nuLo + nuHi * (1 << DEPTH);
+    Nu === nuLo + nuHi * (1 << DEPTH);
 
     signal isPrevEmpty <== IsZero()(PrevCount);
 
@@ -101,7 +91,7 @@ template Relay(DEPTH) {
         newValue <== 1,
         // (1, 0) -> insert
         fnc      <== [1, 0]
-    );    
+    );
 
-    CT_hash <== PoseidonHasher(CT_LEN)(CT);
+    NuHash <== PoseidonHasher(2)([Nu, MsgHash]);
 }

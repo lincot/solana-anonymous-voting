@@ -3,4 +3,4 @@ pragma circom 2.2.2;
 
 include "../Relay.circom";
 
-component main {public[Root_before, MsgHash, MsgLimit, EphKey, Nonce]} = Relay(64);
+component main {public[Root_before, MsgHash, MsgLimit]} = Relay(64);

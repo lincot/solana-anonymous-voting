@@ -7,11 +7,11 @@ skip-lint = false
 
 [programs.localnet]
 anon-vote = "MootG8ueTooVorJJq3kxdXLLg59ZW6phaHpoWeSySqB"
-zk-relayer = "re1AjD8N1s4qZdKqJGNCjWRWcRS6jWoxVGw2ZXoMn7u"
+zk-relayer = "rE1A7sMM4abRWhL9nvcLnPJxK8cxMJJ4GphLk8UG45B"
 
 [programs.devnet]
 anon-vote = "MootG8ueTooVorJJq3kxdXLLg59ZW6phaHpoWeSySqB"
-zk-relayer = "re1AjD8N1s4qZdKqJGNCjWRWcRS6jWoxVGw2ZXoMn7u"
+zk-relayer = "rE1A7sMM4abRWhL9nvcLnPJxK8cxMJJ4GphLk8UG45B"
 
 [test.validator]
 url = "https://api.devnet.solana.com"

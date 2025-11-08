@@ -13,7 +13,7 @@ pub mod state;
 mod utils;
 mod vk;
 
-declare_id!("re1AjD8N1s4qZdKqJGNCjWRWcRS6jWoxVGw2ZXoMn7u");
+declare_id!("rE1A7sMM4abRWhL9nvcLnPJxK8cxMJJ4GphLk8UG45B");
 
 /// The list of allowed programs. Relayer has to trust the program, otherwise
 /// a transaction could fail and waste network fee. Transaction simulation
@@ -63,9 +63,7 @@ pub mod zk_relayer {
         root_after: [u8; 32],
         msg_hash: [u8; 32],
         discriminator: u8,
-        eph_key: Point,
-        nonce: u64,
-        ciphertext_hash: [u8; 32],
+        nu_hash: [u8; 32],
         data: Vec<u8>,
     ) -> Result<()> {
         instructions::relay(
@@ -75,9 +73,7 @@ pub mod zk_relayer {
             root_after,
             msg_hash,
             discriminator,
-            eph_key,
-            nonce,
-            ciphertext_hash,
+            nu_hash,
             data,
         )
     }

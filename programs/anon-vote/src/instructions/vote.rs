@@ -4,7 +4,7 @@ use zk_relayer::state::RelayerState;
 
 use crate::{error::AnonVoteError, events::VoteEvent, state::*, utils::*, vk::VK_VOTE};
 
-const RELAYER_PROGRAM: Pubkey = pubkey!("re1AjD8N1s4qZdKqJGNCjWRWcRS6jWoxVGw2ZXoMn7u");
+const RELAYER_PROGRAM: Pubkey = pubkey!("rE1A7sMM4abRWhL9nvcLnPJxK8cxMJJ4GphLk8UG45B");
 
 #[derive(Accounts)]
 pub struct Vote<'info> {
@@ -55,16 +55,16 @@ pub fn vote(
         poll.platform_fee,
     )?;
 
-    let relayer_ciphertext_hash = [0; 32];
-    let relayer_decrypt_key = Point::default();
+    let relayer_nu_hash = [0; 32];
+    let relayer_id = [0; 32];
 
     vote_common(
         eph_key,
         nonce,
         ciphertext,
         proof,
-        relayer_ciphertext_hash,
-        relayer_decrypt_key,
+        relayer_nu_hash,
+        relayer_id,
         None,
         common,
     )
@@ -73,11 +73,11 @@ pub fn vote(
 #[allow(clippy::too_many_arguments)]
 pub fn vote_with_relayer(
     ctx: Context<VoteWithRelayer>,
+    relayer_nu_hash: [u8; 32],
+    msg_hash: [u8; 32],
+    relayer_id: [u8; 32],
     eph_key: Point,
     nonce: u64,
-    relayer_ciphertext_hash: [u8; 32],
-    msg_hash: [u8; 32],
-    relayer_decrypt_key: Point,
     ciphertext: [[u8; 32]; 7],
     proof: CompressedProof,
 ) -> Result<()> {
@@ -98,8 +98,8 @@ pub fn vote_with_relayer(
         nonce,
         ciphertext,
         proof,
-        relayer_ciphertext_hash,
-        relayer_decrypt_key,
+        relayer_nu_hash,
+        relayer_id,
         Some(msg_hash),
         common,
     )
@@ -111,8 +111,8 @@ fn vote_common(
     nonce: u64,
     ciphertext: [[u8; 32]; 7],
     proof: CompressedProof,
-    relayer_ciphertext_hash: [u8; 32],
-    relayer_decrypt_key: Point,
+    relayer_nu_hash: [u8; 32],
+    relayer_id: [u8; 32],
     msg_hash_from_relayer: Option<[u8; 32]>,
     common: &mut VoteCommon<'_>,
 ) -> Result<()> {
@@ -146,16 +146,15 @@ fn vote_common(
         .map_err(|_| AnonVoteError::ProofDecompressionError)?;
     let public_inputs = [
         msg_hash,
-        relayer_ciphertext_hash,
+        relayer_nu_hash,
         poll.census_root,
         u64_to_u128_be(poll.id),
         u8_to_u128_be(poll.n_choices),
         poll.coordinator_key.x,
         poll.coordinator_key.y,
-        relayer_decrypt_key.x,
-        relayer_decrypt_key.y,
+        relayer_id,
     ];
-    let mut v = Groth16Verifier::<9>::new(&proof.a, &proof.b, &proof.c, &public_inputs, &VK_VOTE)
+    let mut v = Groth16Verifier::<8>::new(&proof.a, &proof.b, &proof.c, &public_inputs, &VK_VOTE)
         .map_err(|_| AnonVoteError::InvalidProof)?;
     v.verify().map_err(|_| AnonVoteError::InvalidProof)?;
 

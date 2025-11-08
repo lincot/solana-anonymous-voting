@@ -3,7 +3,7 @@
     "file": "Vote",
     "template": "Vote",
     "params": [40],
-    "pubs": ["CensusRoot", "PollId", "N_choices", "CoordinatorPK", "RelayerPK"]
+    "pubs": ["CensusRoot", "PollId", "N_choices", "CoordinatorPK", "RelayerId"]
   },
   "Tally": {
     "file": "Tally",
@@ -15,6 +15,6 @@
     "file": "Relay",
     "template": "Relay",
     "params": [64],
-    "pubs": ["Root_before", "MsgHash", "MsgLimit", "EphKey", "Nonce"]
+    "pubs": ["Root_before", "MsgHash", "MsgLimit"]
   }
 }

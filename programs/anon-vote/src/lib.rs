@@ -87,21 +87,21 @@ pub mod anon_vote {
     #[allow(clippy::too_many_arguments)]
     pub fn vote_with_relayer(
         ctx: Context<VoteWithRelayer>,
+        relayer_nu_hash: [u8; 32],
+        msg_hash: [u8; 32],
+        relayer_id: [u8; 32],
         eph_key: Point,
         nonce: u64,
-        relayer_ciphertext_hash: [u8; 32],
-        msg_hash: [u8; 32],
-        relayer_decrypt_key: Point,
         ciphertext: [[u8; 32]; 7],
         proof: CompressedProof,
     ) -> Result<()> {
         instructions::vote_with_relayer(
             ctx,
+            relayer_nu_hash,
+            msg_hash,
+            relayer_id,
             eph_key,
             nonce,
-            relayer_ciphertext_hash,
-            msg_hash,
-            relayer_decrypt_key,
             ciphertext,
             proof,
         )

@@ -4,13 +4,12 @@ import { InstructionWithCu, toBN } from "./utils";
 import { getProgram } from "./program";
 import { RELAYER_CONFIG } from "./constants";
 import { findRelayerState } from "./pdas";
-import { CompressedProof, Point } from "./types";
+import { CompressedProof } from "./types";
 
 export type InitializeParams = {
   payer: PublicKey;
   admin: PublicKey;
   relayerEndpoint: string;
-  relayerDecryptionKey: Point;
   relayerFeeKey: PublicKey;
   fee: BN | bigint;
 };
@@ -19,7 +18,6 @@ export async function initialize({
   payer,
   admin,
   relayerEndpoint,
-  relayerDecryptionKey,
   relayerFeeKey,
   fee,
 }: InitializeParams): Promise<InstructionWithCu> {
@@ -27,7 +25,6 @@ export async function initialize({
     .initialize(
       {
         endpoint: relayerEndpoint,
-        decryptionKey: relayerDecryptionKey,
         feeKey: relayerFeeKey,
       },
       admin,
@@ -47,7 +44,6 @@ export type UpdateConfigParams = {
   oldAdmin: PublicKey;
   newAdmin: PublicKey;
   relayerEndpoint: string;
-  relayerDecryptionKey: Point;
   relayerFeeKey: PublicKey;
   fee: BN | bigint;
 };
@@ -57,7 +53,6 @@ export async function updateConfig({
   oldAdmin,
   newAdmin,
   relayerEndpoint,
-  relayerDecryptionKey,
   relayerFeeKey,
   fee,
 }: UpdateConfigParams): Promise<InstructionWithCu> {
@@ -65,7 +60,6 @@ export async function updateConfig({
     .updateConfig(
       {
         endpoint: relayerEndpoint,
-        decryptionKey: relayerDecryptionKey,
         feeKey: relayerFeeKey,
       },
       newAdmin,
@@ -92,9 +86,7 @@ export type RelayParams = {
   rootAfter: number[];
   msgHash: number[];
   discriminator: number;
-  ephKey: Point;
-  nonce: BN | bigint;
-  ciphertextHash: number[];
+  nuHash: number[];
   data: Buffer;
   targetProgram: PublicKey;
   targetAccounts: AccountMeta[];
@@ -108,9 +100,7 @@ export async function relay({
   rootAfter,
   msgHash,
   discriminator,
-  ephKey,
-  nonce,
-  ciphertextHash,
+  nuHash,
   data,
   targetProgram,
   targetAccounts,
@@ -123,9 +113,7 @@ export async function relay({
       rootAfter,
       msgHash,
       discriminator,
-      ephKey,
-      toBN(nonce),
-      ciphertextHash,
+      nuHash,
       data,
     )
     .accounts({

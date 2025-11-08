@@ -19,7 +19,6 @@ impl ZkRelayerConfig {
 pub struct Relayer {
     #[max_len(0)]
     pub endpoint: String,
-    pub decryption_key: Point,
     pub fee_key: Pubkey,
 }
 
