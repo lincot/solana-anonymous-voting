@@ -11,6 +11,7 @@ pub struct Relay<'info> {
     relayer: Signer<'info>,
     relayer_config: Account<'info, ZkRelayerConfig>,
     #[account(
+        mut,
         seeds = [&b"RELAYER_STATE"[..], &target_program.key.to_bytes(), &state_id.to_le_bytes()],
         bump,
     )]
@@ -28,7 +29,7 @@ pub fn relay<'info>(
     ctx: Context<'_, '_, '_, 'info, Relay<'info>>,
     state_id: u64,
     proof: CompressedProof,
-    root_after: [u8; 32],
+    root_state_after: [u8; 32],
     msg_hash: [u8; 32],
     discriminator: u8,
     nu_hash: [u8; 32],
@@ -42,9 +43,9 @@ pub fn relay<'info>(
         .decompress()
         .map_err(|_| ZkRelayerError::ProofDecompressionError)?;
     let public_inputs = [
-        root_after,
+        relayer_state.root_state,
+        root_state_after,
         nu_hash,
-        relayer_state.root,
         msg_hash,
         u64_to_u128_be(relayer_state.msg_limit),
     ];
@@ -52,7 +53,7 @@ pub fn relay<'info>(
         .map_err(|_| ZkRelayerError::InvalidProof)?;
     v.verify().map_err(|_| ZkRelayerError::InvalidProof)?;
 
-    relayer_state.root = root_after;
+    relayer_state.root_state = root_state_after;
 
     let mut relayer_id = relayer.key().to_bytes();
     relayer_id[0] &= (1 << 5) - 1;

@@ -29,7 +29,7 @@ pub struct Proof {
     pub c: [u8; 64],
 }
 
-#[derive(Debug, AnchorSerialize, AnchorDeserialize)]
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub struct CompressedProof {
     pub a: [u8; 32],
     pub b: [u8; 64],
@@ -56,7 +56,7 @@ pub struct Point {
 #[account(discriminator = 251u8)]
 #[derive(Debug, InitSpace)]
 pub struct RelayerState {
-    pub root: [u8; 32],
+    pub root_state: [u8; 32],
     /// Fee fixed at the time of creation.
     pub fee: u64,
     /// Message limit per user.

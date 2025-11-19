@@ -1,22 +1,25 @@
 use config::{Config, File};
 use serde::Deserialize;
+use solana_sdk::signature::Keypair;
 use solana_tools::solana_transactor::RpcEntry;
+use solana_tools::utils::deserialize_keypair;
 use std::path::PathBuf;
 use tracing::debug;
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct IndexerConfig {
+pub(crate) struct RelayerConfig {
     pub addrs: String,
-    pub solana: SolanaReaderConfig,
+    pub solana: SolanaConfig,
     pub ssl: SslConfig,
+    pub rocksdb_path: String,
 }
 
-impl IndexerConfig {
+impl RelayerConfig {
     pub(super) fn from_path(config_path: PathBuf) -> Self {
         debug!("Reading config from path {:?}", config_path);
         let config = Config::builder()
             .add_source(File::from(config_path))
-            .add_source(config::Environment::with_prefix("AV").separator("_"))
+            .add_source(config::Environment::with_prefix("RELAYER").separator("_"))
             .build()
             .expect("Failed to build envs");
 
@@ -26,11 +29,12 @@ impl IndexerConfig {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
-pub(crate) struct SolanaReaderConfig {
+#[derive(Debug, Deserialize)]
+pub(crate) struct SolanaConfig {
+    #[serde(deserialize_with = "deserialize_keypair")]
+    pub keypair: Keypair,
     pub read_rpcs: Vec<RpcEntry>,
     pub write_rpcs: Vec<RpcEntry>,
-    pub reader_concurrency: usize,
 }
 
 #[derive(Clone, Debug, Deserialize)]

@@ -55,13 +55,18 @@ import {
   createTally,
   cuLimitInstruction,
   fetchPlatformConfig,
+  findPoll,
   finishTally,
   type InstructionWithCu,
+  PLATFORM_CONFIG,
   PLATFORM_NAME,
+  PROGRAM_ID,
+  serializeVoteData,
   setProvider as setAnonProvider,
   tallyBatch,
   vote,
 } from "@lincot/anon-vote-sdk";
+import { fetchRelayerConfig } from "@lincot/zk-relayer-sdk";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import type BaseWebIrys from "@irys/web-upload/esm/base";
 import { getMerkleProof, getMerkleRoot } from "../../helpers/merkletree.ts";
@@ -86,6 +91,7 @@ export const CLUSTER = (import.meta.env.VITE_CLUSTER) as
   | "mainnet";
 export const RPC_URL = import.meta.env.VITE_RPC_URL as string;
 export const INDEXER_URL = import.meta.env.VITE_INDEXER_URL as string;
+export const RELAYER_URL = import.meta.env.VITE_RELAYER_URL as string;
 export const OTHER_ENV_URL = import.meta.env.VITE_OTHER_ENV_URL as
   | string
   | undefined;
@@ -1134,7 +1140,27 @@ const PollCreator: React.FC<{}> = () => {
           <div className="mt-3">
             <div className="flex items-center gap-2">
               <label className="block text-sm font-medium">Census</label>
-              <CensusHelp />
+              <Help
+                title="What is census.bin?"
+                content={
+                  <div>
+                    <p className="mb-1 font-medium">Census file format</p>
+                    <ul className="list-disc ml-4 space-y-1">
+                      <li>Binary file, no header.</li>
+                      <li>
+                        Concatenation of leaves, one per voter, each exactly
+                        {" "}
+                        <b>32 bytes</b> (big-endian).
+                      </li>
+                      <li>
+                        Each leaf is <code>Poseidon(pubX, pubY)</code>{" "}
+                        over BabyJub, encoded as a field element (BE).
+                      </li>
+                      <li>No padding; file size must be divisible by 32.</li>
+                    </ul>
+                  </div>
+                }
+              />
             </div>
             <input
               type="file"
@@ -1201,7 +1227,9 @@ const ComputedCensusHints = ({ control }: { control: any }) => {
   );
 };
 
-const CensusHelp: React.FC = () => {
+const Help: React.FC<{ title: string; content: any }> = (
+  { title, content },
+) => {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative inline-block">
@@ -1209,25 +1237,13 @@ const CensusHelp: React.FC = () => {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center border border-gray-300 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-        title="What is census.bin?"
+        title={title}
       >
         ?
       </button>
       {open && (
         <div className="absolute z-10 mt-2 w-80 p-3 text-xs rounded-lg border bg-white dark:bg-neutral-900 border-gray-200 dark:border-neutral-800 shadow">
-          <p className="mb-1 font-medium">Census file format</p>
-          <ul className="list-disc ml-4 space-y-1">
-            <li>Binary file, no header.</li>
-            <li>
-              Concatenation of leaves, one per voter, each exactly{" "}
-              <b>32 bytes</b> (big-endian).
-            </li>
-            <li>
-              Each leaf is <code>Poseidon(pubX, pubY)</code>{" "}
-              over BabyJub, encoded as a field element (BE).
-            </li>
-            <li>No padding; file size must be divisible by 32.</li>
-          </ul>
+          {content}
         </div>
       )}
     </div>
@@ -1611,41 +1627,33 @@ const ResultsBars: React.FC<{
 
   return (
     <Card title={title}>
-      {data.total === 0
-        ? (
-          <div className="text-sm text-gray-600 dark:text-zinc-300">
-            No votes yet.
-          </div>
-        )
-        : (
-          <div className="space-y-3">
-            {data.pairs.map((p) => {
-              const pct = data.total === 0
-                ? 0
-                : Math.round((p.count / data.total) * 100);
-              const rel = Math.round((p.count / data.max) * 100);
-              return (
-                <div key={p.idx}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <div className="font-medium truncate">{p.label}</div>
-                    <div className="text-xs tabular-nums text-gray-600 dark:text-zinc-300">
-                      {p.count} ({pct}%)
-                    </div>
-                  </div>
-                  <div className="h-2 w-full bg-gray-200 dark:bg-zinc-800 rounded overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-600 dark:bg-emerald-500 transition-[width] duration-300"
-                      style={{ width: `${rel}%` }}
-                    />
-                  </div>
+      <div className="space-y-3">
+        {data.pairs.map((p) => {
+          const pct = data.total === 0
+            ? 0
+            : Math.round((p.count / data.total) * 100);
+          const rel = Math.round((p.count / data.max) * 100);
+          return (
+            <div key={p.idx}>
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="font-medium truncate">{p.label}</div>
+                <div className="text-xs tabular-nums text-gray-600 dark:text-zinc-300">
+                  {p.count} ({pct}%)
                 </div>
-              );
-            })}
-            <div className="text-xs text-gray-500 dark:text-zinc-400">
-              Total votes: <span className="tabular-nums">{data.total}</span>
+              </div>
+              <div className="h-2 w-full bg-gray-200 dark:bg-zinc-800 rounded overflow-hidden">
+                <div
+                  className="h-full bg-emerald-600 dark:bg-emerald-500 transition-[width] duration-300"
+                  style={{ width: `${rel}%` }}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })}
+        <div className="text-xs text-gray-500 dark:text-zinc-400">
+          Total votes: <span className="tabular-nums">{data.total}</span>
+        </div>
+      </div>
     </Card>
   );
 };
@@ -1992,6 +2000,23 @@ function localInputToUnixSeconds(s: string): number {
   );
 }
 
+type RelayAccountMeta = {
+  is_signer: boolean;
+  is_writable: boolean;
+  pubkey: string;
+};
+
+type RelayRequestBody = {
+  msg_hash: string;
+  nu: string;
+  discriminator: number;
+  data: string;
+  target_program: string;
+  state_id: string;
+  cu_limit?: number;
+  accounts: RelayAccountMeta[];
+};
+
 const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
   const wallet = useWallet();
   const KR = useKeyringCtx();
@@ -2001,7 +2026,8 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
   const [title, setTitle] = useState<string>("Loading…");
   const [choices, setChoices] = useState<string[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
-  const [stage, setStage] = useState<string>("");
+  const [stage, setStage] = useState<string | React.ReactNode>("");
+  const [useRelayer, setUseRelayer] = useState<boolean>(true);
   const [err, setErr] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
@@ -2042,7 +2068,8 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
     });
   }, [pollId]);
 
-  const disabled = busy || !wallet.publicKey || KR.locked || !poll ||
+  const disabled = busy || (!useRelayer && !wallet.publicKey) || KR.locked ||
+    !poll ||
     selected == null || Date.now() / 1000 < poll.voting_start_time ||
     Date.now() / 1000 > poll.voting_end_time;
 
@@ -2182,6 +2209,20 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
 
       const CoordinatorPK = PK;
 
+      let RelayerId = 0n;
+      let relayerNu;
+      if (useRelayer) {
+        setStage("Fetching relayer information…");
+        const relayerConfig = await fetchRelayerConfig(connection);
+        if (!relayerConfig) {
+          throw new Error("Relayer not initialized");
+        }
+        const relayerIdBuf = relayerConfig.relayer.feeKey.toBuffer();
+        relayerIdBuf[0] &= (1 << 5) - 1;
+        RelayerId = BigInt("0x" + relayerIdBuf.toString("hex"));
+        relayerNu = F.toObject(poseidon([sigHash, RelayerId]));
+      }
+
       setStage("Generating proof… (this may take a bit)");
       const inputs = {
         CensusRoot: BigInt("0x" + poll.census_root),
@@ -2199,7 +2240,7 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
         Choice,
         ephR: r,
         CoordinatorPK,
-        RelayerId: 0n,
+        RelayerId,
         Nonce,
         CT,
       };
@@ -2210,36 +2251,131 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
       );
       const serializedProof = compressProof(proof);
 
-      setStage("Sending transaction…");
-      const platform = await fetchPlatformConfig(connection);
-      const ix: InstructionWithCu = await vote({
-        payer: wallet.publicKey,
-        pollId: PollId,
-        ciphertext: CT.map((c) => Array.from(toBytes32(c))),
-        ephKey: {
-          x: Array.from(toBytes32(R[0])),
-          y: Array.from(toBytes32(R[1])),
-        },
-        nonce: Nonce,
-        proof: {
+      if (useRelayer) {
+        setStage("Preparing relayer request…");
+
+        const msgHashBig = F.toObject(
+          poseidon([R[0], R[1], Nonce, ...CT]),
+        ) as bigint;
+        const msgHashHex = bytesToHex(toBytes32(msgHashBig));
+        const nuHex = bytesToHex(toBytes32(relayerNu));
+
+        const ciphertextBytes: number[][] = CT.map((c) =>
+          Array.from(toBytes32(c))
+        );
+        const proofCompressed = {
           a: Array.from(serializedProof.a),
           b: Array.from(serializedProof.b),
           c: Array.from(serializedProof.c),
-        },
-        platformFeeDestination: platform!.feeDestination,
-        pollFeeDestination: new PublicKey(poll.fee_destination),
-      });
+        };
+        const ephKeyBytes = {
+          x: Array.from(toBytes32(R[0])),
+          y: Array.from(toBytes32(R[1])),
+        };
 
-      const tx = new Transaction().add(
-        cuLimitInstruction([ix]),
-        ...[ix].map((x) => x.instruction),
-      );
-      tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-      tx.feePayer = wallet.publicKey;
-      await wallet.sendTransaction(tx, connection, { maxRetries: 3 });
+        if (!RELAYER_URL) {
+          throw new Error("Relayer URL is not configured.");
+        }
+
+        const dataU8 = serializeVoteData({
+          ciphertext: ciphertextBytes,
+          proof: proofCompressed,
+          ephKey: ephKeyBytes,
+          nonce: Nonce,
+        });
+        const dataHex = bytesToHex(dataU8);
+
+        const platform = await fetchPlatformConfig(connection);
+
+        const accounts: RelayAccountMeta[] = [
+          {
+            is_signer: false,
+            is_writable: false,
+            pubkey: PLATFORM_CONFIG.toBase58(),
+          },
+          {
+            is_signer: false,
+            is_writable: true,
+            pubkey: findPoll(PollId).toBase58(),
+          },
+          {
+            is_signer: false,
+            is_writable: true,
+            pubkey: platform!.feeDestination.toBase58(),
+          },
+        ];
+
+        const body: RelayRequestBody = {
+          msg_hash: msgHashHex,
+          nu: nuHex,
+          discriminator: 4,
+          data: dataHex,
+          target_program: PROGRAM_ID.toBase58(),
+          state_id: String(PollId),
+          cu_limit: 200_000,
+          accounts,
+        };
+
+        setStage("Submitting to relayer…");
+        const resp = await fetch(new URL("/relay", RELAYER_URL).toString(), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => "");
+          throw new Error(txt || `Relayer error (${resp.status})`);
+        }
+        const { signature } = (await resp.json()) as { signature: string };
+        // TODO verify transaction content here
+
+        const q = CLUSTER === "devnet" ? "?cluster=devnet" : "";
+        const url = `https://explorer.solana.com/tx/${signature}${q}`;
+        setStage(
+          <>
+            Vote sent via relayer.&nbsp;
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              View on Explorer
+            </a>
+          </>,
+        );
+      } else {
+        setStage("Sending transaction…");
+        const platform = await fetchPlatformConfig(connection);
+        const ix: InstructionWithCu = await vote({
+          payer: wallet.publicKey,
+          pollId: PollId,
+          ciphertext: CT.map((c) => Array.from(toBytes32(c))),
+          ephKey: {
+            x: Array.from(toBytes32(R[0])),
+            y: Array.from(toBytes32(R[1])),
+          },
+          nonce: Nonce,
+          proof: {
+            a: Array.from(serializedProof.a),
+            b: Array.from(serializedProof.b),
+            c: Array.from(serializedProof.c),
+          },
+          platformFeeDestination: platform!.feeDestination,
+          pollFeeDestination: new PublicKey(poll.fee_destination),
+        });
+
+        const tx = new Transaction().add(
+          cuLimitInstruction([ix]),
+          ...[ix].map((x) => x.instruction),
+        );
+        tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+        tx.feePayer = wallet.publicKey;
+        await wallet.sendTransaction(tx, connection, { maxRetries: 3 });
+        setStage("Vote sent!");
+      }
 
       await RK.setForPoll(accountId, pollIdBig, { ...newRec, title });
-      setStage("Vote sent!");
     } catch (e: any) {
       console.error(e);
       setErr("Error: " + String(e?.message || e));
@@ -2308,6 +2444,7 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
                 ))}
               </div>
             )}
+
           <div className="mt-4 flex items-center gap-3">
             <button
               className={btn(!disabled)}
@@ -2324,11 +2461,47 @@ const VotePage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
               Unlock your ZK keyring in “ZK Accounts”.
             </div>
           )}
-          {!wallet.publicKey && (
+          {!useRelayer && !wallet.publicKey && (
             <div className="mt-2 text-xs text-amber-600">
               Connect your Solana wallet.
             </div>
           )}
+
+          <div className="mt-3 flex items-center">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={useRelayer}
+                onChange={(e) => setUseRelayer(e.target.checked)}
+              />
+              Use relayer (recommended)
+              <Help
+                title={"When to use relayer?"}
+                content={
+                  <div>
+                    <p>
+                      Relayer submits your vote on-chain and covers all
+                      fees.<br />
+                      <br />
+                      Note that relayer can only send a maximum of 3 of your
+                      votes per poll.<br />
+                      <br />
+                      If you prefer, uncheck to submit the transaction directly
+                      from your wallet. However, in this case, tallier will be
+                      able to link your vote to your wallet.
+                    </p>
+                  </div>
+                }
+              />
+            </label>
+
+            {!RELAYER_URL && useRelayer && (
+              <span className="ml-3 text-xs text-amber-600">
+                Relayer URL is not configured
+              </span>
+            )}
+          </div>
         </Card>
       )}
       {!!poll?.tally && (
@@ -2870,8 +3043,8 @@ const TallyPage: React.FC<{ pollId: bigint }> = ({ pollId }) => {
               {(() => {
                 const processed = store.processedCount;
                 const rem = remaining ?? 0;
-                const total = Math.max(1, processed + rem);
-                const pct = Math.max(
+                const total = processed + rem;
+                const pct = total === 0 ? 100 : Math.max(
                   0,
                   Math.min(100, Math.round((processed / total) * 100)),
                 );

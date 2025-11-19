@@ -7,11 +7,11 @@ skip-lint = false
 
 [programs.localnet]
 anon-vote = "MootG8ueTooVorJJq3kxdXLLg59ZW6phaHpoWeSySqB"
-zk-relayer = "rE1A7sMM4abRWhL9nvcLnPJxK8cxMJJ4GphLk8UG45B"
+zk-relayer = "Re1aDNwUYroFdKmsPDKnZaQPxxKtDBvwNctH1w9ow6j"
 
 [programs.devnet]
 anon-vote = "MootG8ueTooVorJJq3kxdXLLg59ZW6phaHpoWeSySqB"
-zk-relayer = "rE1A7sMM4abRWhL9nvcLnPJxK8cxMJJ4GphLk8UG45B"
+zk-relayer = "Re1aDNwUYroFdKmsPDKnZaQPxxKtDBvwNctH1w9ow6j"
 
 [test.validator]
 url = "https://api.devnet.solana.com"
@@ -35,4 +35,5 @@ pnpm ts-mocha -p ./tsconfig.json --no-timeouts --slow 0 --exit tests/*.test.ts
 """
 
 initialize-anon-vote = "pnpm ts-node scripts/anon-vote/initialize.ts"
-initialize-zk-relayer = "pnpm ts-node scripts/zk-relayer/initialize.ts"
+initialize-relayer = "pnpm ts-node scripts/zk-relayer/initialize.ts"
+fetch-relayer-config = "pnpm ts-node scripts/zk-relayer/fetchConfig.ts"

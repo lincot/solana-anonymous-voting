@@ -22,13 +22,13 @@ pub fn transfer(from: &AccountInfo, to: &AccountInfo, lamports: u64) -> Result<(
     Ok(())
 }
 
-pub fn u8_to_u128_be(x: u8) -> [u8; 32] {
+pub fn u8_to_u256_be(x: u8) -> [u8; 32] {
     let mut res = [0; 32];
     res[31] = x;
     res
 }
 
-pub fn u64_to_u128_be(x: u64) -> [u8; 32] {
+pub fn u64_to_u256_be(x: u64) -> [u8; 32] {
     let mut res = [0; 32];
     res[32 - 8..].copy_from_slice(&x.to_be_bytes());
     res

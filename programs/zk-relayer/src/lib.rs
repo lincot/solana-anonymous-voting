@@ -11,9 +11,9 @@ pub mod error;
 mod instructions;
 pub mod state;
 mod utils;
-mod vk;
+pub mod vk;
 
-declare_id!("rE1A7sMM4abRWhL9nvcLnPJxK8cxMJJ4GphLk8UG45B");
+declare_id!("Re1aDNwUYroFdKmsPDKnZaQPxxKtDBvwNctH1w9ow6j");
 
 /// The list of allowed programs. Relayer has to trust the program, otherwise
 /// a transaction could fail and waste network fee. Transaction simulation
@@ -60,7 +60,7 @@ pub mod zk_relayer {
         ctx: Context<'_, '_, '_, 'info, Relay<'info>>,
         state_id: u64,
         proof: CompressedProof,
-        root_after: [u8; 32],
+        root_state_after: [u8; 32],
         msg_hash: [u8; 32],
         discriminator: u8,
         nu_hash: [u8; 32],
@@ -70,11 +70,13 @@ pub mod zk_relayer {
             ctx,
             state_id,
             proof,
-            root_after,
+            root_state_after,
             msg_hash,
             discriminator,
             nu_hash,
             data,
         )
     }
+
+    // TODO close_relayer_state
 }

@@ -15,14 +15,17 @@ template Relay(DEPTH) {
     var CT_LEN = PAD + 1;
 
     // ---- Public ----
-    signal input Root_before;
     signal input MsgHash;
     signal input MsgLimit;
-    signal output Root_after;
+    signal output Root_state_before;
+    signal output Root_state_after;
     signal output NuHash;
 
     // ---- Private ----
     signal input Nu;
+
+    signal input RootQuota_before;
+    signal input RootUniq_before;
 
     signal input PrevCount;
     signal input SiblingsQuota[DEPTH];
@@ -46,8 +49,8 @@ template Relay(DEPTH) {
     signal isPrevEmpty <== IsZero()(PrevCount);
 
     SMTVerifier(DEPTH)(
-	    enabled <== 1,
-        root <== Root_before,
+        enabled <== 1,
+        root <== RootQuota_before,
         siblings <== SiblingsQuota,
         oldKey <== AuxKeyQuota, // not required for inclusion
         oldValue <== AuxValueQuota, // not required for inclusion
@@ -57,8 +60,8 @@ template Relay(DEPTH) {
         fnc <== isPrevEmpty
     );
 
-    signal rootAfterQuota <== SMTProcessor(DEPTH)(
-        oldRoot  <== Root_before,
+    signal rootQuota_after <== SMTProcessor(DEPTH)(
+        oldRoot  <== RootQuota_before,
         siblings <== SiblingsQuota,
         oldKey   <== AuxKeyQuota,
         oldValue <== AuxValueQuota,
@@ -70,8 +73,8 @@ template Relay(DEPTH) {
     );
 
     SMTVerifier(DEPTH)(
-	    enabled <== 1,
-        root <== rootAfterQuota,
+        enabled <== 1,
+        root <== RootUniq_before,
         siblings <== SiblingsUniq,
         oldKey <== AuxKeyUniq,
         oldValue <== AuxValueUniq,
@@ -81,8 +84,8 @@ template Relay(DEPTH) {
         fnc <== 1
     );
 
-    Root_after <== SMTProcessor(DEPTH)(
-        oldRoot  <== rootAfterQuota,
+    signal rootUniq_after <== SMTProcessor(DEPTH)(
+        oldRoot  <== RootUniq_before,
         siblings <== SiblingsUniq,
         oldKey   <== AuxKeyUniq,
         oldValue <== AuxValueUniq,
@@ -94,4 +97,6 @@ template Relay(DEPTH) {
     );
 
     NuHash <== PoseidonHasher(2)([Nu, MsgHash]);
+    Root_state_before <== PoseidonHasher(2)([RootQuota_before, RootUniq_before]);
+    Root_state_after <== PoseidonHasher(2)([rootQuota_after, rootUniq_after]);
 }

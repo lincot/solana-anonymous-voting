@@ -4,7 +4,7 @@ use zk_relayer::state::RelayerState;
 
 use crate::{error::AnonVoteError, events::VoteEvent, state::*, utils::*, vk::VK_VOTE};
 
-const RELAYER_PROGRAM: Pubkey = pubkey!("rE1A7sMM4abRWhL9nvcLnPJxK8cxMJJ4GphLk8UG45B");
+const RELAYER_PROGRAM: Pubkey = pubkey!("Re1aDNwUYroFdKmsPDKnZaQPxxKtDBvwNctH1w9ow6j");
 
 #[derive(Accounts)]
 pub struct Vote<'info> {
@@ -127,7 +127,7 @@ fn vote_common(
     let mut preimage = [&eph_key.x[..]; 10];
     preimage[0] = &eph_key.x;
     preimage[1] = &eph_key.y;
-    let nonce_u128 = u64_to_u128_be(nonce);
+    let nonce_u128 = u64_to_u256_be(nonce);
     preimage[2] = &nonce_u128;
     for (i, c) in ciphertext.iter().enumerate() {
         preimage[3 + i] = c;
@@ -148,8 +148,8 @@ fn vote_common(
         msg_hash,
         relayer_nu_hash,
         poll.census_root,
-        u64_to_u128_be(poll.id),
-        u8_to_u128_be(poll.n_choices),
+        u64_to_u256_be(poll.id),
+        u8_to_u256_be(poll.n_choices),
         poll.coordinator_key.x,
         poll.coordinator_key.y,
         relayer_id,

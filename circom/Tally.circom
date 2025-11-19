@@ -139,8 +139,8 @@ template Tally(DEPTH, MAX_CHOICES, MAX_BATCH) {
         // if leaf was empty, prev choice should be 0
         IsPrevEmpty[i] * PrevChoice[i] === 0;
 
-    	SMTVerifier(DEPTH)(
-    	    enabled <== indexLessThan[i],
+        SMTVerifier(DEPTH)(
+            enabled <== indexLessThan[i],
             root <== rootAcc[i],
             siblings <== Siblings[i],
             oldKey <== AuxKey[i], // not required for inclusion

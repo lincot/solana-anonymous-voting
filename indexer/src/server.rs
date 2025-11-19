@@ -21,10 +21,14 @@ impl Server {
         Self { pool }
     }
 
-    pub async fn execute(self, ssl_config: SslConfig, workers: usize) -> std::io::Result<()> {
+    pub async fn execute(
+        self,
+        addrs: &str,
+        ssl_config: SslConfig,
+        workers: usize,
+    ) -> std::io::Result<()> {
         let state = AppState { pool: self.pool };
 
-        let ip = ("0.0.0.0", 8443);
         let mut ssl_builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
         ssl_builder.set_private_key_file(ssl_config.key, SslFiletype::PEM)?;
         ssl_builder.set_certificate_chain_file(ssl_config.cert)?;
@@ -39,7 +43,7 @@ impl Server {
                 .service(polls_by_voter)
                 .service(polls_by_coordinator)
         })
-        .bind_openssl(ip, ssl_builder)?
+        .bind_openssl(addrs, ssl_builder)?
         .workers(workers)
         .run()
         .await

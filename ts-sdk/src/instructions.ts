@@ -180,7 +180,7 @@ export type VoteWithRelayerParams = {
   pollId: BN | bigint;
   proof: CompressedProof;
   relayerProof: CompressedProof;
-  rootAfter: number[];
+  rootStateAfter: number[];
   platformFeeDestination: PublicKey;
 };
 
@@ -194,7 +194,7 @@ export async function voteWithRelayer({
   pollId,
   proof,
   relayerProof,
-  rootAfter,
+  rootStateAfter,
   platformFeeDestination,
 }: VoteWithRelayerParams): Promise<InstructionWithCu> {
   const data = serializeVoteData({
@@ -211,7 +211,7 @@ export async function voteWithRelayer({
     msgHash,
     nuHash: relayerNuHash,
     proof: relayerProof,
-    rootAfter,
+    rootStateAfter,
     targetAccounts: [{
       isSigner: false,
       isWritable: false,
@@ -363,7 +363,7 @@ type SerializeVoteDataParams = {
   nonce: BN | bigint;
 };
 
-function serializeVoteData({
+export function serializeVoteData({
   ciphertext,
   proof,
   ephKey,

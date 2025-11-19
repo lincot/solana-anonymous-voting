@@ -2,6 +2,8 @@
 members = [
     "programs/*",
     "indexer",
+    "relayer",
+    "smt-circom",
 ]
 resolver = "2"
 

@@ -22,5 +22,7 @@ anchor-lang = "0.31.1"
 groth16-solana = "0.2"
 solana-bn254 = "2"
 solana-invoke = "0.4"
-solana-poseidon = "2.3"
 solana-system-interface = "1"
+
+[dev-dependencies]
+solana-poseidon = "2.3"

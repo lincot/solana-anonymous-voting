@@ -26,6 +26,7 @@ import {
   fetchRelayerState,
   findRelayerState,
   initialize as initializeRelayer,
+  RELAYER_CONFIG,
   updateConfig as updateRelayerConfig,
 } from "@lincot/zk-relayer-sdk";
 import {
@@ -325,7 +326,7 @@ describe("Anon Vote", () => {
     );
     expect(relayerState?.endTime.eq(votingEndTime)).to.be.true;
     expect(toBigint(relayerState?.msgLimit)).to.equal(MSG_LIMIT);
-    expect(relayerState?.root).to.deep.equal(
+    expect(relayerState?.rootState).to.not.deep.equal(
       Array.from({ length: 32 }, () => 0),
     );
   });
@@ -338,9 +339,11 @@ describe("Anon Vote", () => {
     const BatchLen = voters.length + 2;
     expect(BatchLen).to.be.lessThan(MAX_BATCH);
 
-    const relayerDb = new InMemoryDB(new Uint8Array(1));
-    const quotaMt = new Merkletree(relayerDb, true, STATE_DEPTH);
+    const quotaDb = new InMemoryDB(new Uint8Array(1));
+    const quotaMt = new Merkletree(quotaDb, true, STATE_DEPTH);
     const quotaMtMap = new Map();
+    const uniqDb = new InMemoryDB(new Uint8Array(2));
+    const uniqMt = new Merkletree(uniqDb, true, STATE_DEPTH);
 
     const { prv: prvRevoting, pub: pubRevoting } = genBabyJubKeypair(
       babyjub,
@@ -520,7 +523,8 @@ describe("Anon Vote", () => {
       });
 
       if (i == 1) {
-        const Root_before = (await quotaMt.root()).bigInt();
+        const RootQuota_before = (await quotaMt.root()).bigInt();
+        const RootUniq_before = (await uniqMt.root()).bigInt();
 
         const idx = relayerNu & ((1n << BigInt(STATE_DEPTH)) - 1n);
 
@@ -541,7 +545,7 @@ describe("Anon Vote", () => {
           proofQuota = await quotaMt.update(idx, BigInt(PrevCount + 1));
         }
 
-        const proofUniq = await quotaMt.addAndGetCircomProof(MsgHash_pub, 1n);
+        const proofUniq = await uniqMt.addAndGetCircomProof(MsgHash_pub, 1n);
 
         const SiblingsQuota = proofQuota.siblings.map((h) => h.bigInt());
         expect(SiblingsQuota.length).to.equal(STATE_DEPTH);
@@ -551,7 +555,8 @@ describe("Anon Vote", () => {
         const MsgLimit = 3n;
 
         const inputs = {
-          Root_before,
+          RootQuota_before,
+          RootUniq_before,
           MsgHash: MsgHash_js,
           MsgLimit,
           Nu: relayerNu,
@@ -572,15 +577,24 @@ describe("Anon Vote", () => {
           "build/Relay/groth16_pkey.zkey",
         );
 
-        const Root_after = BigInt(publicSignals[0]);
-        const RelayerNuHash_pub = BigInt(publicSignals[1]);
-        const Root_before_pub = BigInt(publicSignals[2]);
+        const Root_state_before_pub = BigInt(publicSignals[0]);
+        const Root_state_after = BigInt(publicSignals[1]);
+        const RelayerNuHash_pub = BigInt(publicSignals[2]);
         const MsgHash_pubRelayer = BigInt(publicSignals[3]);
         const MsgLimit_pub = BigInt(publicSignals[4]);
 
-        expect(Root_after).to.equal((await quotaMt.root()).bigInt());
+        expect(Root_state_before_pub).to.equal(
+          F.toObject(poseidon([RootQuota_before, RootUniq_before])),
+        );
+        expect(Root_state_after).to.equal(
+          F.toObject(
+            poseidon([
+              (await quotaMt.root()).bigInt(),
+              (await uniqMt.root()).bigInt(),
+            ]),
+          ),
+        );
         expect(RelayerNuHash_pub).to.equal(RelayerNuHash_js);
-        expect(Root_before_pub).to.equal(Root_before);
         expect(MsgHash_pubRelayer).to.equal(MsgHash_js);
         expect(MsgLimit_pub).to.equal(MsgLimit);
 
@@ -612,7 +626,7 @@ describe("Anon Vote", () => {
               b: Array.from(serializedRelayerProof.b),
               c: Array.from(serializedRelayerProof.c),
             },
-            rootAfter: toBytesBE32(Root_after),
+            rootStateAfter: toBytesBE32(Root_state_after),
           }),
           [relayer],
         );

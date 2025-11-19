@@ -36,7 +36,7 @@ pub struct Tx {
 pub struct SolanaReader {
     rpc_pool: RpcPool,
     program: Pubkey,
-    tx_read_from: Signature,
+    tx_read_from: Option<Signature>,
     concurrency: usize,
     polling_interval: Duration,
     confirmed_tx_sender: Broadcaster<Arc<Tx>>,
@@ -49,7 +49,7 @@ impl SolanaReader {
     pub fn new(
         rpc_pool: RpcPool,
         program: Pubkey,
-        tx_read_from: Signature,
+        tx_read_from: Option<Signature>,
         concurrency: usize,
         polling_interval: Duration,
         confirmed_tx_sender: Broadcaster<Arc<Tx>>,
@@ -68,12 +68,19 @@ impl SolanaReader {
     }
 
     pub async fn listen_to_solana(mut self) -> Result<(), TransactorError> {
-        debug!(
-            "Starting listening to Solana program {} since tx {}",
-            self.program, self.tx_read_from,
-        );
+        if let Some(tx_read_from) = self.tx_read_from {
+            debug!(
+                "Starting listening to Solana program {} from tx {}",
+                self.program, tx_read_from,
+            );
+        } else {
+            debug!(
+                "Starting listening to Solana program {} from the start",
+                self.program
+            );
+        }
 
-        let mut tx_read_from = Some(self.tx_read_from);
+        let mut tx_read_from = self.tx_read_from;
         let mut until: Option<Signature> = None;
         let mut next_until: Option<Signature> = None;
         loop {

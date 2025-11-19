@@ -51,7 +51,7 @@ pub struct Proof {
     pub c: [u8; 64],
 }
 
-#[derive(Debug, AnchorSerialize, AnchorDeserialize)]
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, PartialEq, Eq)]
 pub struct CompressedProof {
     pub a: [u8; 32],
     pub b: [u8; 64],

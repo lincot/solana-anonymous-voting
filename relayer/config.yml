@@ -1,4 +1,4 @@
-addrs: "0.0.0.0:8443"
+addrs: "0.0.0.0:8444"
 
 solana:
     read_rpcs:
@@ -12,3 +12,5 @@ solana:
 ssl:
     key: "key.pem"
     cert: "cert.pem"
+
+rocksdb_path: "rocksdb"

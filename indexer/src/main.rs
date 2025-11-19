@@ -72,7 +72,7 @@ async fn main() {
         .get_cursor()
         .await
         .unwrap()
-        .map_or(Default::default(), |s| s.parse().unwrap());
+        .map(|s| s.parse().unwrap());
 
     let mut confirmed_tx_sender = Broadcaster::new();
     let finalized_tx_sender = Broadcaster::new();
@@ -120,6 +120,7 @@ async fn main() {
     });
     let res = server
         .execute(
+            &config.addrs,
             config.ssl,
             std::thread::available_parallelism()
                 .unwrap()
