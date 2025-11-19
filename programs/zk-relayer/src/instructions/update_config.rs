@@ -24,21 +24,22 @@ pub fn update_config(
     let payer = &mut ctx.accounts.payer;
     let relayer_config = &mut ctx.accounts.relayer_config;
 
-    let rent = Rent::get()?.minimum_balance(
+    let rent = Rent::get()?;
+    let rent_diff = rent.minimum_balance(
         relayer_config
             .relayer
             .endpoint
             .len()
             .abs_diff(relayer.endpoint.len()),
-    );
+    ) - rent.minimum_balance(0);
     if relayer_config.relayer.endpoint.len() < relayer.endpoint.len() {
         system_transfer(
             payer.to_account_info(),
             relayer_config.to_account_info(),
-            rent,
+            rent_diff,
         )?;
     } else {
-        transfer(relayer_config.as_ref(), payer, rent)?;
+        transfer(relayer_config.as_ref(), payer, rent_diff)?;
     }
 
     relayer_config.admin = admin;

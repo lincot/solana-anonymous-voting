@@ -34,6 +34,7 @@ pnpm build:sdk && \
 pnpm ts-mocha -p ./tsconfig.json --no-timeouts --slow 0 --exit tests/*.test.ts
 """
 
+fetch-relayer-config = "pnpm ts-node scripts/zk-relayer/fetchConfig.ts"
 initialize-anon-vote = "pnpm ts-node scripts/anon-vote/initialize.ts"
 initialize-relayer = "pnpm ts-node scripts/zk-relayer/initialize.ts"
-fetch-relayer-config = "pnpm ts-node scripts/zk-relayer/fetchConfig.ts"
+update-relayer-config = "pnpm ts-node scripts/zk-relayer/updateConfig.ts"

@@ -26,7 +26,6 @@ import {
   fetchRelayerState,
   findRelayerState,
   initialize as initializeRelayer,
-  RELAYER_CONFIG,
   updateConfig as updateRelayerConfig,
 } from "@lincot/zk-relayer-sdk";
 import {
